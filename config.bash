@@ -11,7 +11,7 @@ source ~/catkin_ws/devel/setup.bash
 alias inhands="ssh ros@192.168.2.245"
 
 # Use roscore from the server
-alias confmaster="export ROS_MASTER_URI=http://192.168.2.245:11311/"
+alias confmaster="ROS_MASTER_URI=http://192.168.2.245:11311/"
 
 # See server gpu information 
-alias serverinfo="inhands nvidia-smi"
+alias inhandsinfo="watch nvidia-smi"
