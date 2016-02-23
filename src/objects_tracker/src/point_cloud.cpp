@@ -1,5 +1,5 @@
 // Ros includes
-#include "ros/ros.h"
+#include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/Image.h>
@@ -11,9 +11,9 @@
 
 // Point cloud
 #include <pcl/point_cloud.h>
+#include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/statistical_outlier_removal.h>
-#include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 using namespace cv;
@@ -174,11 +174,13 @@ int main(int argc, char **argv)
   message_filters::Subscriber<Image> depth2_sub(nh, CAM2_DEPTH, 1);
   message_filters::Subscriber<CameraInfo> info2_sub(nh, CAM2_CAMERA, 1);
 
-  // Initialize publisher.
+  // Initialize camera 1 publishers.
   ROS_INFO("\nCamera 1 PointCloud publisher: \n\t%s\n", CAM1_POINTCLOUD);
   ros::Publisher cam1_pub = nh.advertise< pcl::PointCloud<pcl::PointXYZRGBA> > (CAM1_POINTCLOUD, 1);
   ROS_INFO("\nCamera 1 filtered PointCloud publisher: \n\t%s\n", CAM1_POINTCLOUD_FILTER);
   ros::Publisher cam1_filt_pub = nh.advertise< pcl::PointCloud<pcl::PointXYZRGBA> > (CAM1_POINTCLOUD_FILTER, 1);
+
+  // Initialize camera 2 publishers.
   ROS_INFO("\nCamera 2 PointCloud publisher: \n\t%s\n", CAM2_POINTCLOUD);
   ros::Publisher cam2_pub = nh.advertise< pcl::PointCloud<pcl::PointXYZRGBA> > (CAM2_POINTCLOUD, 1);
   ROS_INFO("\nCamera 2 filtered PointCloud publisher: \n\t%s\n", CAM2_POINTCLOUD_FILTER);

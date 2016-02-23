@@ -1,5 +1,6 @@
 <launch>
   <machine name="inhands" address="192.168.2.245" env-loader="~/inhands_ws/env.bash" user="ros" password="$(env INHANDS_PSW)"/>
 
-  <node pkg="objects_tracker" name="point_cloud" type="point_cloud" />
+  <node machine="inhands" pkg="objects_tracker" name="point_cloud" type="point_cloud" />
+  <node machine="inhands" pkg="objects_tracker" name="extract_plane" type="extract_plane" />
 </launch>
