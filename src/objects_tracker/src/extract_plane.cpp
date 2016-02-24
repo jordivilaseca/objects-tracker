@@ -20,8 +20,14 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/cuda/point_cloud.h>
+#include <pcl/cuda/sample_consensus/sac_model.h>
+#include <pcl/cuda/sample_consensus/ransac.h>
+#include <pcl/cuda/sample_consensus/sac_model_plane.h>
+#include "utilities.h"
 
 using namespace std;
+using namespace pcl::cuda;
 using namespace sensor_msgs;
 using namespace message_filters;
 
@@ -57,12 +63,35 @@ pcl::PointCloud<pcl::PointXYZRGBA> cloud_f;
 ros::Publisher cam1_pub;
 ros::Publisher cam2_pub;
 
-void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &planeCloud) {
-	/*pcl::PointCloud<pcl::PointXYZRGBA>::Ptr */planeCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+/*// Not implemented in pcl yet. :(
+void fromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &input, pcl::cuda::PointCloudAOS<pcl::cuda::Device>::Ptr &output)
+{
+	//output->points.resize(input->points.size());
+	for (size_t i = 0; i < input->points.size (); ++i) {
+		pcl::cuda::PointXYZRGB pt;
+		pt.x = input->points[i].x;
+		pt.y = input->points[i].y;
+		pt.z = input->points[i].z;
+		// Pack RGB into a float
+		pt.rgb = *(float*)(&input->points[i].rgb);
+		output->points[i] = pt;
+	}
+	output->width = input->width;
+	output->height = input->height;
+	output->is_dense = input->is_dense;
+}*/
 
-	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
-	pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
-	// Create the segmentation object
+void getPlanes(const pcl::cuda::PointCloudAOS<pcl::cuda::Device>::ConstPtr &cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &planeCloud) {
+
+	cout << "1" << endl;
+	SampleConsensusModelPlane<Device>::Ptr model = SampleConsensusModelPlane<Device>::Ptr(new SampleConsensusModelPlane<Device>(cloud)); 	
+	RandomSampleConsensus<Device> sac(model);
+
+	//planeCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+
+	SampleConsensusModelPlane<Device>::IndicesPtr inliers = sac.getInliers();
+	cout << "2" << endl;
+	/*// Create the segmentation object
 	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
 	// Optional
 	seg.setOptimizeCoefficients(true);
@@ -90,18 +119,23 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::P
 		extract.setNegative(false);
 		extract.filter(*planeCloud);
 		i++;
-	//}
+	//}*/
 }
 
-void callback_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
-	getPlanes(cloud, planeCloud);
+void callback_cam1(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud) {
+	cout << "callback_cam1" << endl;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr planeCloud;
+	PointCloudAOS<Device>::Ptr cloudCuda;// = PointCloudAOS<Device>::Ptr(new PointCloudAOS<Device>());
+	cout << "pre fromPCL" << endl;
+	fromPCL(cloud, cloudCuda);
+	cout << "post fromPCL" << endl;
+	getPlanes(cloudCuda, planeCloud);
 	cam1_pub.publish(planeCloud);
 }
-void callback_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
+void callback_cam2(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud) {
+	/*pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
 	getPlanes(cloud, planeCloud);
-	cam2_pub.publish(planeCloud);
+	cam2_pub.publish(planeCloud);*/
 }
 
 int main(int argc, char **argv) {
@@ -111,11 +145,11 @@ int main(int argc, char **argv) {
 
   	// Initialize camera 1 subscribers.
   	ROS_INFO("Camera 1 subscribers: %s\n", CAM1_POINTCLOUD_FILTER);
- 	ros::Subscriber cam1_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD_FILTER, 1, &callback_cam1);
+ 	ros::Subscriber cam1_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGB> >(CAM1_POINTCLOUD_FILTER, 1, &callback_cam1);
 
 	// Initialize camera 2 subscribers.
 	ROS_INFO("Camera 2 subscribers: %s\n", CAM2_POINTCLOUD_FILTER);
- 	ros::Subscriber cam2_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD_FILTER, 1, &callback_cam2);
+ 	ros::Subscriber cam2_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGB> >(CAM2_POINTCLOUD_FILTER, 1, &callback_cam2);
 
  	// Initialize camera 1 publishers.
 	ROS_INFO("Camera 1 planes PointCloud publisher: %s\n", CAM1_POINTCLOUD_PLANE);
