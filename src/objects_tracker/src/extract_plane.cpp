@@ -21,10 +21,11 @@
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/cuda/point_cloud.h>
+#include <pcl/cuda/point_types.h>
 #include <pcl/cuda/sample_consensus/sac_model.h>
 #include <pcl/cuda/sample_consensus/ransac.h>
 #include <pcl/cuda/sample_consensus/sac_model_plane.h>
-#include "utilities.h"
+#include <objects_tracker/utilities.h>
 
 using namespace std;
 using namespace pcl::cuda;
@@ -63,10 +64,10 @@ pcl::PointCloud<pcl::PointXYZRGBA> cloud_f;
 ros::Publisher cam1_pub;
 ros::Publisher cam2_pub;
 
-/*// Not implemented in pcl yet. :(
-void fromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &input, pcl::cuda::PointCloudAOS<pcl::cuda::Device>::Ptr &output)
+// Not implemented in pcl yet. :(
+/*void fromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &input, pcl::cuda::PointCloudAOS<pcl::cuda::Device>::Ptr &output)
 {
-	//output->points.resize(input->points.size());
+	output->points.resize(input->points.size());
 	for (size_t i = 0; i < input->points.size (); ++i) {
 		pcl::cuda::PointXYZRGB pt;
 		pt.x = input->points[i].x;
@@ -84,13 +85,15 @@ void fromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &input, pcl::cuda
 void getPlanes(const pcl::cuda::PointCloudAOS<pcl::cuda::Device>::ConstPtr &cloud, pcl::PointCloud<pcl::PointXYZRGB>::Ptr &planeCloud) {
 
 	cout << "1" << endl;
-	SampleConsensusModelPlane<Device>::Ptr model = SampleConsensusModelPlane<Device>::Ptr(new SampleConsensusModelPlane<Device>(cloud)); 	
+	SampleConsensusModelPlane<Device>::Ptr model = SampleConsensusModelPlane<Device>::Ptr(new SampleConsensusModelPlane<Device>(cloud));
+	cout << "2" << endl;
 	RandomSampleConsensus<Device> sac(model);
+	cout << "3" << endl;
 
 	//planeCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
 
 	SampleConsensusModelPlane<Device>::IndicesPtr inliers = sac.getInliers();
-	cout << "2" << endl;
+	cout << "4" << endl;
 	/*// Create the segmentation object
 	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
 	// Optional
@@ -122,12 +125,29 @@ void getPlanes(const pcl::cuda::PointCloudAOS<pcl::cuda::Device>::ConstPtr &clou
 	//}*/
 }
 
+void point2cudapoint(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, pcl::PointCloud<pcl::cuda::PointXYZRGB>::Ptr &cudaCloud) {
+	cudaCloud->header = cloud->header;
+	cudaCloud->width = cloud->width;
+	cudaCloud->height = cloud->height;
+	cudaCloud->is_dense = cloud->is_dense;
+	cudaCloud->sensor_origin_ = cloud->sensor_origin_;
+	cudaCloud->sensor_orientation_ = cloud->sensor_orientation_;
+	cudaCloud->points.resize(cloud->points.size());
+	for(int i = 0; i < cudaCloud->points.size(); i++) {
+		pcl::PointXYZRGB p = cloud->points[i];
+		cudaCloud->points[i] = pcl::cuda::PointXYZRGB(p.x, p.y, p.z, p.rgb);
+	}
+}
+
 void callback_cam1(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud) {
 	cout << "callback_cam1" << endl;
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr planeCloud;
-	PointCloudAOS<Device>::Ptr cloudCuda;// = PointCloudAOS<Device>::Ptr(new PointCloudAOS<Device>());
+	pcl::PointCloud<pcl::cuda::PointXYZRGB>::Ptr cudaCloud = pcl::PointCloud<pcl::cuda::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::cuda::PointXYZRGB>());
+	point2cudapoint(cloud, cudaCloud);
+	cout << "post point2cudapoint" << endl;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr planeCloud = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(new pcl::PointCloud<pcl::PointXYZRGB>());
+	PointCloudAOS<Device>::Ptr cloudCuda;
 	cout << "pre fromPCL" << endl;
-	fromPCL(cloud, cloudCuda);
+	fromPCL(cudaCloud, cloudCuda);
 	cout << "post fromPCL" << endl;
 	getPlanes(cloudCuda, planeCloud);
 	cam1_pub.publish(planeCloud);

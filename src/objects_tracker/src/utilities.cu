@@ -1,9 +1,8 @@
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/cuda/point_cloud.h>
+#include <objects_tracker/utilities.h>
 
-void fromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &input, pcl::cuda::PointCloudAOS<pcl::cuda::Device>::Ptr &output)
+void fromPCL(const pcl::PointCloud<pcl::cuda::PointXYZRGB>::Ptr &input, pcl::cuda::PointCloudAOS<pcl::cuda::Device>::Ptr &output)
 {
+	output = pcl::cuda::PointCloudAOS<pcl::cuda::Device>::Ptr(new pcl::cuda::PointCloudAOS<pcl::cuda::Device>());
 	output->points.resize(input->points.size());
 	for (size_t i = 0; i < input->points.size (); ++i) {
 		pcl::cuda::PointXYZRGB pt;
@@ -17,4 +16,8 @@ void fromPCL(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &input, pcl::cuda
 	output->width = input->width;
 	output->height = input->height;
 	output->is_dense = input->is_dense;
+}
+
+int main() {
+
 }
