@@ -57,50 +57,52 @@ pcl::PointCloud<pcl::PointXYZRGBA> cloud_f;
 ros::Publisher cam1_pub;
 ros::Publisher cam2_pub;
 
-void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &planeCloud) {
-	/*pcl::PointCloud<pcl::PointXYZRGBA>::Ptr */planeCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &remainingCloud) {
+	remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
 
 	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
 	pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
 	// Create the segmentation object
 	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
 	// Optional
-	seg.setOptimizeCoefficients(true);
+	//seg.setOptimizeCoefficients(true);
 	// Mandatory
 	seg.setModelType(pcl::SACMODEL_PLANE);
 	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(1000);
-	seg.setDistanceThreshold(0.02);
+	seg.setMaxIterations(2000);
+	seg.setDistanceThreshold(0.01);
 
 	// Create the filtering object
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 
+	// False => extreu pla
 	int i = 0;
-	int nr_points =(int) cloud->points.size();
-	// While 30% of the original cloud is still there
-	//while(cloud->points.size() > 0.3 * nr_points){
+	while(i < 8){
+		cout << "Iteration " << i << endl;
 		// Segment the largest planar component from the remaining cloud
-		seg.setInputCloud(cloud);
+		seg.setInputCloud(remainingCloud);
 		seg.segment(*inliers, *coefficients);
-		//if (inliers->indices.size() == 0) break;
+		if (inliers->indices.size() == 0) break;
 
 		// Extract the inliers
-		extract.setInputCloud(cloud);
+		extract.setInputCloud(remainingCloud);
 		extract.setIndices(inliers);
-		extract.setNegative(false);
-		extract.filter(*planeCloud);
+		extract.setNegative(true);
+		extract.filter(*remainingCloud);
 		i++;
-	//}
+	}
 }
 
 void callback_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
 	getPlanes(cloud, planeCloud);
+	planeCloud->header.frame_id = "cam1_link";
 	cam1_pub.publish(planeCloud);
 }
 void callback_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
 	getPlanes(cloud, planeCloud);
+	planeCloud->header.frame_id = "cam2_link";
 	cam2_pub.publish(planeCloud);
 }
 
@@ -111,11 +113,11 @@ int main(int argc, char **argv) {
 
   	// Initialize camera 1 subscribers.
   	ROS_INFO("Camera 1 subscribers: %s\n", CAM1_POINTCLOUD_FILTER);
- 	ros::Subscriber cam1_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD_FILTER, 1, &callback_cam1);
+ 	ros::Subscriber cam1_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &callback_cam1);
 
 	// Initialize camera 2 subscribers.
 	ROS_INFO("Camera 2 subscribers: %s\n", CAM2_POINTCLOUD_FILTER);
- 	ros::Subscriber cam2_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD_FILTER, 1, &callback_cam2);
+ 	ros::Subscriber cam2_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &callback_cam2);
 
  	// Initialize camera 1 publishers.
 	ROS_INFO("Camera 1 planes PointCloud publisher: %s\n", CAM1_POINTCLOUD_PLANE);
