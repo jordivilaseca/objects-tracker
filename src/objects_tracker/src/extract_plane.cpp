@@ -52,24 +52,43 @@ using namespace message_filters;
 #define CAM2_POINTCLOUD_FILTER CAM2_POINTCLOUD "/filtered"
 #define CAM2_POINTCLOUD_PLANE CAM2_POINTCLOUD "/plane"
 
+int NUM_IT = 8;
+
 pcl::PointCloud<pcl::PointXYZRGBA> cloud_f;
 
 ros::Publisher cam1_pub;
 ros::Publisher cam2_pub;
 
-void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &remainingCloud) {
-	remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
+long long getTime(){
+    struct timeval tp;
+    gettimeofday(&tp, NULL);
+    long long mslong = (long long) tp.tv_sec * 1000L + tp.tv_usec / 1000; //get current timestamp in milliseconds
+    return mslong;
+}
 
-	pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
-	pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+void getPlanesCoeffcients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, std::vector<pcl::ModelCoefficients::Ptr> &coefficients) {
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
+
+	long long init = getTime();
+
+	coefficients = std::vector<pcl::ModelCoefficients::Ptr>();
+  	std::vector<pcl::PointIndices::Ptr> inliers = std::vector<pcl::PointIndices::Ptr>();
+
+  	for(int i = 0; i < NUM_IT; i++) {
+  		coefficients.push_back(boost::make_shared<pcl::ModelCoefficients>());
+  		inliers.push_back(boost::make_shared<pcl::PointIndices>());
+  	}
+
+	//std::vector<pcl::ModelCoefficients::Ptr> coefficients = std::vector<pcl::ModelCoefficients::Ptr>();
 	// Create the segmentation object
 	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
 	// Optional
 	//seg.setOptimizeCoefficients(true);
 	// Mandatory
 	seg.setModelType(pcl::SACMODEL_PLANE);
+	seg.setOptimizeCoefficients(true);
 	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(2000);
+	seg.setMaxIterations(1000);
 	seg.setDistanceThreshold(0.01);
 
 	// Create the filtering object
@@ -77,31 +96,62 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::P
 
 	// False => extreu pla
 	int i = 0;
-	while(i < 8){
+	while(i < NUM_IT){
 		cout << "Iteration " << i << endl;
 		// Segment the largest planar component from the remaining cloud
 		seg.setInputCloud(remainingCloud);
-		seg.segment(*inliers, *coefficients);
-		if (inliers->indices.size() == 0) break;
+		seg.segment(*inliers[i], *coefficients[i]);
+		if (inliers[i]->indices.size() == 0) break;
+
+		// Extract the inliers
+		extract.setInputCloud(remainingCloud);
+		extract.setIndices(inliers[i]);
+		extract.setNegative(true);
+		extract.filter(*remainingCloud);
+		i++;
+	}
+	cout << "Calcular coeficients dels plans, time " << (getTime() - init) << endl;
+}
+
+void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,const  std::vector<pcl::ModelCoefficients::Ptr> &coefficients, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &remainingCloud) {
+
+	long long init = getTime();
+	remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
+
+	pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (cloud));
+
+	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+
+	for(int i = 0; i < coefficients.size(); i++) {
+		cout << "Iteration " << i << endl;
+
+		Eigen::Vector4f coef = Eigen::Vector4f(coefficients[i]->values.data());
+		pcl::IndicesPtr inliers = pcl::IndicesPtr(new vector<int>());
+		dit->selectWithinDistance(coef, 0.01, *inliers);
 
 		// Extract the inliers
 		extract.setInputCloud(remainingCloud);
 		extract.setIndices(inliers);
 		extract.setNegative(true);
 		extract.filter(*remainingCloud);
-		i++;
 	}
+	cout << "Extreure punts dels plans, time " << (getTime() - init) << endl;
 }
 
+
 void callback_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
+	std::vector<pcl::ModelCoefficients::Ptr> coefficients;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
-	getPlanes(cloud, planeCloud);
+	getPlanesCoeffcients(cloud, coefficients);
+	removePlanes(cloud, coefficients, planeCloud);
 	planeCloud->header.frame_id = "cam1_link";
 	cam1_pub.publish(planeCloud);
 }
 void callback_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
+	std::vector<pcl::ModelCoefficients::Ptr> coefficients;
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr planeCloud;
-	getPlanes(cloud, planeCloud);
+	getPlanesCoeffcients(cloud, coefficients);
+	removePlanes(cloud, coefficients, planeCloud);
 	planeCloud->header.frame_id = "cam2_link";
 	cam2_pub.publish(planeCloud);
 }
@@ -112,11 +162,11 @@ int main(int argc, char **argv) {
   	ros::NodeHandle nh;
 
   	// Initialize camera 1 subscribers.
-  	ROS_INFO("Camera 1 subscribers: %s\n", CAM1_POINTCLOUD_FILTER);
+  	ROS_INFO("Camera 1 subscribers: %s\n", CAM1_POINTCLOUD);
  	ros::Subscriber cam1_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &callback_cam1);
 
 	// Initialize camera 2 subscribers.
-	ROS_INFO("Camera 2 subscribers: %s\n", CAM2_POINTCLOUD_FILTER);
+	ROS_INFO("Camera 2 subscribers: %s\n", CAM2_POINTCLOUD);
  	ros::Subscriber cam2_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &callback_cam2);
 
  	// Initialize camera 1 publishers.
