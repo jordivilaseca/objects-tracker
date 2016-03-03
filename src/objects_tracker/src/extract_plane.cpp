@@ -57,6 +57,11 @@ using namespace message_filters;
 // Total number of planes to find.
 int NUM_IT = 1;
 
+// Time control variables.
+int MEAN_ELEM = 25;
+unsigned long total_time = 0;
+unsigned long times = 0;
+
 // Node publishers.
 ros::Publisher cam1_pub;
 ros::Publisher cam2_pub;
@@ -133,7 +138,7 @@ void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,cons
 	remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
 
 	// Initialize plane segmentator.
-	pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (cloud));
+	pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (remainingCloud));
 
 	// Create the filtering object.
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
@@ -156,7 +161,13 @@ void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,cons
 		extract.setNegative(true);
 		extract.filter(*remainingCloud);
 	}
-	ROS_INFO("Extracted plane points from point cloud, total time %llu", getTime() - init);
+	total_time += getTime()-init;
+	times++;
+	if (times == MEAN_ELEM) {
+		ROS_INFO("Extracted plane points from point cloud %i times, mean time %lu", MEAN_ELEM, total_time/MEAN_ELEM);
+		times = 0;
+		total_time = 0;
+	}
 }
 
 
