@@ -20,8 +20,14 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
 
+// Boost
 #include <boost/thread/mutex.hpp>
+
+// My libraries
+#include <objects_tracker/utilities.hpp>
 
 using namespace std;
 using namespace sensor_msgs;
@@ -78,11 +84,23 @@ boost::mutex m2;
 bool existsPlaneCam1 = false;
 bool existsPlaneCam2 = false;
 
-long long getTime(){
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    long long mslong = (long long) tp.tv_sec * 1000L + tp.tv_usec / 1000;
-    return mslong;
+void clustering(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::IndicesPtr &inputIndices) {
+	// Creating the KdTree object for the search method of the extraction
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
+	tree->setInputCloud(cloud);
+
+	std::vector<pcl::PointIndices> clusterIndices = std::vector<pcl::PointIndices>();
+
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
+	ec.setClusterTolerance(0.005);	// 1cm
+	ec.setIndices(inputIndices);
+	ec.setMinClusterSize(10000);
+	ec.setMaxClusterSize(500000);
+	ec.setSearchMethod(tree);
+	ec.setInputCloud(cloud);
+	ec.extract(clusterIndices);
+
+	colorPointCloud(cloud, clusterIndices);
 }
 
 void getPlanesCoeffcients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, std::vector<pcl::ModelCoefficients> &coefficients, boost::mutex &m) {
@@ -98,7 +116,7 @@ void getPlanesCoeffcients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cl
 	seg.setModelType(pcl::SACMODEL_PLANE);
 	seg.setOptimizeCoefficients(true);
 	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(2000);
+	seg.setMaxIterations(5000);
 	seg.setDistanceThreshold(0.015);
 
 	// Create the filtering object.
@@ -130,7 +148,7 @@ void getPlanesCoeffcients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cl
 	ROS_INFO("Calculated plane coefficients, total time %llu", (getTime() - init));
 }
 
-void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,const  std::vector<pcl::ModelCoefficients> &coefficients, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &remainingCloud, boost::mutex &m) {
+void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,const std::vector<pcl::ModelCoefficients> &coefficients, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &remainingCloud, boost::mutex &m) {
 
 	long long init = getTime();
 
@@ -156,10 +174,12 @@ void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,cons
 		dit->selectWithinDistance(coef, 0.015, *inliers);
 
 		// Extract the plane inliers from the remainingCloud.
-		extract.setInputCloud(remainingCloud);
+		/*extract.setInputCloud(remainingCloud);
 		extract.setIndices(inliers);
 		extract.setNegative(true);
-		extract.filter(*remainingCloud);
+		extract.filter(*remainingCloud);*/
+		clustering(remainingCloud, inliers);
+		//colorPointCloud(remainingCloud, inliers, 255, 0, 0);
 	}
 	total_time += getTime()-init;
 	times++;
