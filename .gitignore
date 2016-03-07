@@ -43,9 +43,10 @@ qtcreator-*
 # Emacs
 .#*
 
+src/beginner_tutorials
+
 # Catkin custom files
 CMakeCache.txt
-CMakeLists.txt
 CMakeFiles
 Makefile
 cmake_install.cmake
