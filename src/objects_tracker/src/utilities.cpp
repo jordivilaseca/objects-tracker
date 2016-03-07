@@ -27,6 +27,13 @@ void colorPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std::
 	}
 }
 
+void colorPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices &inliers, uint8_t r, uint8_t g, uint8_t b) {
+	for(uint i = 0; i < inliers.indices.size(); i++) {
+		int p = inliers.indices[i];
+		colorPoint(cloud->points[p], r, g, b);
+	}
+}
+
 void colorPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std::vector<pcl::PointIndices> &inliers) {
 	int numIn = inliers.size();
 	int step = (256*4)/numIn;
@@ -69,5 +76,21 @@ void colorPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std::
 	int remaining = inliers.size() - i;
 	if(remaining != 0) {
 		ROS_WARN("colorPointCloud: Not all the regions have been painted, there are %i regions not painted.", remaining);
+	}
+}
+
+void colorLine(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, const pcl::ModelCoefficients &coef, double minDist, int r, int g, int b) {
+	for (int i = 0; i < inputIndices->indices.size(); i++) {
+		int pos = inputIndices->indices[i];
+		pcl::PointXYZRGBA p = cloud->points[pos];
+
+		Eigen::Vector4f pt = Eigen::Vector4f(p.x, p.y, p.z, 0);
+		Eigen::Vector4f line_pt = Eigen::Vector4f(coef.values[0], coef.values[1], coef.values[2], 0);
+		Eigen::Vector4f line_dir = Eigen::Vector4f(coef.values[3], coef.values[4], coef.values[5], 0);
+		double dist = pcl::sqrPointToLineDistance(pt, line_pt, line_dir);
+
+		if (dist <= minDist) {
+			colorPoint(cloud->points[pos], r, g, b);
+		}
 	}
 }

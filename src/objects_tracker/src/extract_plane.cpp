@@ -22,6 +22,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/surface/convex_hull.h>
 
 // Boost
 #include <boost/thread/mutex.hpp>
@@ -61,12 +62,16 @@ using namespace message_filters;
 #define CAM2_POINTCLOUD_PLANE CAM2_POINTCLOUD "/plane"
 
 // Total number of planes to find.
-int NUM_IT = 1;
+const int NUM_IT = 1;
 
 // Time control variables.
-int MEAN_ELEM = 25;
+const int MEAN_ELEM = 25;
 unsigned long total_time = 0;
 unsigned long times = 0;
+
+// Cluster variables.
+const int MIN_CLUSTER_POINTS = 10000;
+const int MAX_CLUSTER_POINTS = 500000;
 
 // Node publishers.
 ros::Publisher cam1_pub;
@@ -84,6 +89,55 @@ boost::mutex m2;
 bool existsPlaneCam1 = false;
 bool existsPlaneCam2 = false;
 
+void findLines(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, std::vector<pcl::ModelCoefficients> &coef){
+	// Cloud containing the points without the planes.
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
+	coef = std::vector<pcl::ModelCoefficients>(4);
+
+	// Create the segmentation object.
+	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
+
+	// Set segmentation parameters.
+	seg.setModelType(pcl::SACMODEL_LINE);
+	seg.setIndices(inputIndices);
+	seg.setOptimizeCoefficients(true);
+	seg.setMethodType(pcl::SAC_RANSAC);
+	seg.setMaxIterations(5000);
+	seg.setDistanceThreshold(0.005);
+
+	// Create the filtering object.
+	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+
+	// At each step, one plane is removed from remainingCloud.
+	for(int i = 0; i < 4; i++){
+
+		pcl::PointIndices::Ptr inliers = pcl::PointIndices::Ptr(new pcl::PointIndices());
+
+		// Segment the largest planar component from the remaining cloud.
+		seg.setInputCloud(remainingCloud);
+		seg.segment(*inliers, coef[i]);
+
+		if (inliers->indices.size() == 0) break;
+
+		// Extract the plane inliers from the remainingCloud.
+		extract.setInputCloud(remainingCloud);
+		extract.setIndices(inliers);
+		extract.setNegative(true);
+		extract.filter(*remainingCloud);
+	}
+}
+
+void findConvexHull(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, pcl::PointIndices &hullIndices) {
+	// Create a Concave Hull representation of the projected inliers
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_hull(new pcl::PointCloud<pcl::PointXYZRGBA>);
+	hullIndices = pcl::PointIndices();
+	pcl::ConvexHull<pcl::PointXYZRGBA> chull;
+	chull.setInputCloud(cloud);
+	chull.setIndices(inputIndices);
+	chull.reconstruct(*cloud_hull);
+	chull.getHullPointIndices(hullIndices); 
+}
+
 void clustering(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::IndicesPtr &inputIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
@@ -94,13 +148,38 @@ void clustering(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::Indic
 	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
 	ec.setClusterTolerance(0.005);	// 1cm
 	ec.setIndices(inputIndices);
-	ec.setMinClusterSize(10000);
-	ec.setMaxClusterSize(500000);
+	ec.setMinClusterSize(MIN_CLUSTER_POINTS);
+	ec.setMaxClusterSize(MAX_CLUSTER_POINTS);
 	ec.setSearchMethod(tree);
 	ec.setInputCloud(cloud);
 	ec.extract(clusterIndices);
 
-	colorPointCloud(cloud, clusterIndices);
+	if (clusterIndices.size() > 0) {
+
+		// Find the biggest cluster.
+		int max_size = clusterIndices[0].indices.size();
+		int max_pos = 0;
+		for(int i = 0; i < clusterIndices.size(); i++) {
+			if (clusterIndices[i].indices.size() > max_size) {
+				max_size = clusterIndices[i].indices.size();
+				max_pos = i;
+			}
+		}
+
+		// Compute the convex hull of the cluster.
+		pcl::PointIndices hullIndices = pcl::PointIndices();
+		pcl::PointIndices::ConstPtr clusterIndicesPtr = boost::make_shared<pcl::PointIndices>(clusterIndices[max_pos]);
+		findConvexHull(cloud, clusterIndicesPtr, hullIndices);
+		pcl::PointIndices::ConstPtr hullIndicesPtr = boost::make_shared<pcl::PointIndices>(hullIndices);
+		std::vector<pcl::ModelCoefficients> coefficients;
+		findLines(cloud, hullIndicesPtr, coefficients);
+		for(int i = 0; i < coefficients.size(); i++) {
+			colorLine(cloud, clusterIndicesPtr, coefficients[i], 0.005, 255, 0, 0);
+		}
+		//colorPointCloud(cloud, hullIndices, 0, 255, 0);
+	} else {
+		ROS_WARN("No plane was found during clustering, the used parameters are %i and %i (minimum and maximum size)", MIN_CLUSTER_POINTS, MAX_CLUSTER_POINTS);
+	}
 }
 
 void getPlanesCoeffcients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, std::vector<pcl::ModelCoefficients> &coefficients, boost::mutex &m) {
