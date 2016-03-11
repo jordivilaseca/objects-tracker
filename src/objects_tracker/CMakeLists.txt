@@ -202,6 +202,16 @@ find_package(PCL 1.8 REQUIRED)
 find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP)
 
+# OPENMP
+if(OPENMP_FOUND)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
+IF(CMAKE_COMPILER_IS_GNUCC)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -O2")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O2")
+ENDIF(CMAKE_COMPILER_IS_GNUCC)
+
 # PCL and CATKIN
 include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} )
 
@@ -214,16 +224,15 @@ add_executable(point_cloud src/point_cloud.cpp)
 target_link_libraries(point_cloud ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
 add_dependencies(point_cloud opencv_nonfree249d.lib)
 
-# utilities
-cuda_add_library(utilities src/utilities.cpp)
-target_link_libraries(utilities ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+# utilities pcl
+add_library(pcl src/utilities/pcl.cpp)
+target_link_libraries(pcl ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+# utilities ros
+add_library(ros src/utilities/ros.cpp)
+target_link_libraries(ros ${catkin_LIBRARIES})
 
 # extract_plane node
 add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
-target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} utilities ${CUDA_LIBRARIES})
+target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})
 add_dependencies(extract_plane opencv_nonfree249d.lib utilities)
-
-# OPENMP
-if(OPENMP_FOUND)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
