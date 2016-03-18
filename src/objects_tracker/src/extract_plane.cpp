@@ -41,7 +41,7 @@ using namespace std;
 using namespace sensor_msgs;
 using namespace message_filters;
 
-#define COLOuR_IMAGE "image_colour_rect"
+#define COLOUR_IMAGE "image_colour_rect"
 #define DEPTH_IMAGE "image_depth_rect"
 #define CAMERA_INFO "camera_info"
 
@@ -52,11 +52,11 @@ using namespace message_filters;
 #define CAM1_QUALITY "/" CAM1 "/" QUALITY_CAM "/"
 #define CAM2_QUALITY "/" CAM2 "/" QUALITY_CAM "/"
 
-#define CAM1_COLOuR CAM1_QUALITY COLOuR_IMAGE
+#define CAM1_COLOuR CAM1_QUALITY COLOUR_IMAGE
 #define CAM1_DEPTH CAM1_QUALITY DEPTH_IMAGE
 #define CAM1_CAMERA CAM1_QUALITY CAMERA_INFO
 
-#define CAM2_COLOuR CAM2_QUALITY COLOuR_IMAGE
+#define CAM2_COLOUR CAM2_QUALITY COLOUR_IMAGE
 #define CAM2_DEPTH CAM2_QUALITY DEPTH_IMAGE
 #define CAM2_CAMERA CAM2_QUALITY CAMERA_INFO
 
@@ -70,8 +70,10 @@ using namespace message_filters;
 #define CAM2_POINTCLOUD_PLANE CAM2_POINTCLOUD "/plane"
 #define CAM2_POINTCLOUD_PLANE_MARKERS CAM2_POINTCLOUD_PLANE "/markers"
 
+boost::shared_ptr<ros::NodeHandle> nh;
+
 // Total number of planes to find.
-const int NUM_IT = 1;
+const int NUM_IT = 2;
 
 // Time control variables.
 const int MEAN_ELEM = 25;
@@ -83,6 +85,18 @@ ros::Publisher cam1_planes_pub;
 ros::Publisher cam1_marker_pub;
 ros::Publisher cam2_planes_pub;
 ros::Publisher cam2_marker_pub;
+
+// Node subscribers.
+ros::Subscriber cam1_plane_sub;
+ros::Subscriber cam1_limits_sub; 
+ros::Subscriber cam1_coef_sub;
+ros::Subscriber cam2_plane_sub;
+ros::Subscriber cam2_limits_sub;
+ros::Subscriber cam2_remove_sub;
+
+// Masks (one for each plane)
+std::vector<pcl::PointIndices> mask_points_cam1;
+std::vector< std::vector<int> > mask_cumulative_cam1;
 
 // Vectors containing the coefficients of the planes for each camera.
 std::vector<pcl::ModelCoefficients> coefficients_cam1;
@@ -120,17 +134,20 @@ int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 		}
 	}
 
+	// Project pointcloud to a plane.
+	pcl::PointIndices::ConstPtr clusterIndicesPtr = boost::make_shared<pcl::PointIndices>(clusterIndices[max_pos]);
+	pcl::ModelCoefficients::ConstPtr coefPtr = boost::make_shared<pcl::ModelCoefficients>(planeCoefficients);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr projectedCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+	projectToPlane(cloud, coefPtr, projectedCloud);
+
 	// Compute the convex hull of the cluster.
 	pcl::PointIndices hullIndices = pcl::PointIndices();
-	pcl::PointIndices::ConstPtr clusterIndicesPtr = boost::make_shared<pcl::PointIndices>(clusterIndices[max_pos]);
-	findConvexHull(cloud, clusterIndicesPtr, hullIndices);
+	findConvexHull(projectedCloud, clusterIndicesPtr, hullIndices);
 	pcl::PointIndices::ConstPtr hullIndicesPtr = boost::make_shared<pcl::PointIndices>(hullIndices);
 
 	// Simplify convex polygon.
 	planeLimits = pcl::PointIndices();
-	Eigen::Vector4f coef = Eigen::Vector4f(planeCoefficients.values.data());
-	pcl::Normal n = pcl::Normal(coef[0], coef[1], coef[2]);
-	polygonSimplification(cloud, hullIndicesPtr, n, planeLimits);
+	polygonSimplification(cloud, hullIndicesPtr, planeCoefficients.values, 4, planeLimits);
 	return planeLimits.indices.size();
 }
 
@@ -174,14 +191,13 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 }
 
 void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,const std::vector<pcl::ModelCoefficients> &coefficients, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &remainingCloud, boost::mutex &m) {
-
 	long long init = getTime();
 
 	// Cloud containing the points without the planes.
 	remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
 
 	// Initialize plane segmentator.
-	pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (remainingCloud));
+	//pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (remainingCloud));
 
 	// Create the filtering object.
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
@@ -196,8 +212,9 @@ void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,cons
 		Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
 		m.unlock();
 
+		findPlaneInliers(remainingCloud, modelCoef, 0.02, inliers);
 		// Get plane inliers using 'coef' as plane coefficients.
-		dit->selectWithinDistance(coef, 0.02, *inliers);
+		//dit->selectWithinDistance(coef, 0.02, *inliers);
 
 		// Extract the plane inliers from the remainingCloud.
 		extract.setInputCloud(remainingCloud);
@@ -214,6 +231,8 @@ void removePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,cons
 	}
 }
 
+void calculate_limits_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud);
+//void remove_planes_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud);
 
 void planes_coefficients_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
 	if (cam1_planes_pub.getNumSubscribers() > 0 or !existsPlaneCam1) {
@@ -229,34 +248,98 @@ void planes_coefficients_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr
 			coefficients_cam1[i] = planesCoefficients[i];
 			m1_coef.unlock();
 		}
+		existsPlaneCam1 = true;
+		cam1_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &calculate_limits_cam1);
+		cam1_coef_sub.shutdown();
+		ROS_INFO("Calculated coefficients camera 1");
+	}
+}
+
+int cam1_iter = 0;
+int max_iter = 50;
+void calculate_limits_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
+
+	// Initialization
+	if(cam1_iter == 0) {
+		mask_cumulative_cam1 = std::vector< std::vector<int> >(NUM_IT);
+		for(int i = 0; i < NUM_IT; i++) {
+			mask_cumulative_cam1[i].resize(cloud->height*cloud->width, 0);
+		}
+	}
+
+	// Enough iterations, it's time to calculate the limits.
+	if(cam1_iter == max_iter) {
+		std::vector< std::vector< std::vector<double> > > positions = std::vector< std::vector< std::vector<double> > >(mask_points_cam1.size());
 
 		// Find the points that define the limit of each plane.
-		for(int i = 0; i < planesIndices.size(); i++) {
-			pcl::PointIndices planeLimits;
-			pcl::PointIndices::ConstPtr planeIndicesConstPtr = planesIndices[i];
-			int nplanes = getPlaneLimits(cloud, planeIndicesConstPtr, planesCoefficients[i], planeLimits);
+		for(int i = 0; i < mask_points_cam1.size(); i++) {
+			pcl::PointIndices planeLimits = pcl::PointIndices();
+			pcl::PointIndices::ConstPtr planeIndicesConstPtr = boost::make_shared<pcl::PointIndices>(mask_points_cam1[i]);
+			int nplanes = getPlaneLimits(cloud, planeIndicesConstPtr, coefficients_cam1[i], planeLimits);
 
 			// Safe copy of the limits.
 			m1_limits.lock();
 			limits_cam1[i] = planeLimits;
 			m1_limits.unlock();
 
-			// Publish markers.
-			if (cam1_marker_pub.getNumSubscribers() > 0) {
-				for(int j = 0; j < planeLimits.indices.size(); j++) {
-					int ppos = planeLimits.indices[j];
-					pcl::PointXYZRGBA p = cloud->points[ppos];
+			// Calculate point position.
+			for(int j = 0; j < planeLimits.indices.size(); j++) {
+				int ppos = planeLimits.indices[j];
+				pcl::PointXYZRGBA p = cloud->points[ppos];
 
-					double pos[] = {p.x, p.y, p.z};
-					double scale[] = {0.02,0.02,0.02};
-					double colour[] = {0, 255, 0, 1};
-					visualization_msgs::Marker marker = buildMarker("cam1_link", j, visualization_msgs::Marker::CUBE, pos, scale, colour);
-					cam1_marker_pub.publish(marker);
-				}
+				std::vector<double> pos = std::vector<double>(3);
+				pos[0] = p.x;
+				pos[1] = p.y;
+				pos[2] = p.z;
+				positions[i].push_back(pos);
 			}
 		}
-		existsPlaneCam1 = true;
+
+		// Publish markers.
+		if (cam1_marker_pub.getNumSubscribers() > 0) {
+
+			uint32_t type = visualization_msgs::Marker::SPHERE;
+			double width = 0.03;
+			std::vector<visualization_msgs::Marker> markers;
+
+			// Add the line between first and last point.
+			for(int i = 0; i < positions.size(); i++) {
+				positions[i].push_back(positions[i][0]);
+			}
+
+			// Construct line markers.
+			buildLineMarkers("cam1_link", positions, width, markers);
+
+			// Publish markers.
+			for(int i = 0; i < positions.size(); i++) {
+				cam1_marker_pub.publish(markers[i]);
+			}
+		}
+
+		//cam1_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &remove_planes_cam1);
+		//cam1_limits_sub.shutdown();
+		cam1_iter = 0;
+		ROS_INFO("Calculated limits camera 1");
 	}
+
+
+	// Update planes mask.
+	for(int i = 0; i < NUM_IT; i++) {
+
+		// Get plane inliers.
+		pcl::IndicesPtr inliers;
+		findPlaneInliers(cloud, coefficients_cam1[i], 0.02, inliers);
+
+		// Add new inliers and update old ones.
+		for(int j = 0; j < inliers->size(); j++) {
+			int p = (*inliers)[j];
+			if(mask_cumulative_cam1[i][p] == 0) {
+				mask_points_cam1[i].indices.push_back(p);
+			}
+			mask_cumulative_cam1[i][p]++;
+		}
+	}
+	cam1_iter++;
 }
 
 void planes_coefficients_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
@@ -319,9 +402,8 @@ void remove_planes_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clou
 }
 
 int main(int argc, char **argv) {
-
 	ros::init(argc, argv, "extract_plane");
-  	ros::NodeHandle nh;
+	nh.reset(new ros::NodeHandle());
 
   	coefficients_cam1 = std::vector<pcl::ModelCoefficients>(NUM_IT, pcl::ModelCoefficients());
   	coefficients_cam2 = std::vector<pcl::ModelCoefficients>(NUM_IT, pcl::ModelCoefficients());
@@ -329,29 +411,34 @@ int main(int argc, char **argv) {
   	limits_cam1 = std::vector<pcl::PointIndices>(NUM_IT, pcl::PointIndices());
   	limits_cam2 = std::vector<pcl::PointIndices>(NUM_IT, pcl::PointIndices());
 
+  	mask_points_cam1 = std::vector<pcl::PointIndices>(NUM_IT, pcl::PointIndices());
+	mask_cumulative_cam1 = std::vector< std::vector<int> >(NUM_IT);
+
   	// Initialize camera 1 subscribers.
   	ROS_INFO("Camera 1 subscribers: %s\n", CAM1_POINTCLOUD);
- 	ros::Subscriber cam1_plane_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &remove_planes_cam1);
- 	ros::Subscriber cam1_remove_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &planes_coefficients_cam1);
+ 	cam1_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &remove_planes_cam1);
+ 	//cam1_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &calculate_limits_cam1);
+ 	cam1_coef_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &planes_coefficients_cam1);
 
 	// Initialize camera 2 subscribers.
 	ROS_INFO("Camera 2 subscribers: %s\n", CAM2_POINTCLOUD);
- 	ros::Subscriber cam2_plane_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &remove_planes_cam2);
- 	ros::Subscriber cam2_remove_sub = nh.subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &planes_coefficients_cam2);
+ 	cam2_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &remove_planes_cam2);
+ 	//cam2_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &calculate_limits_cam2);
+ 	cam2_remove_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &planes_coefficients_cam2);
 
  	// Initialize camera 1 publishers.
 	ROS_INFO("Camera 1 PointCloud planes publisher: %s\n", CAM1_POINTCLOUD_PLANE);
-	cam1_planes_pub = nh.advertise< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD_PLANE, 1);
+	cam1_planes_pub = nh->advertise< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD_PLANE, 1);
 
 	ROS_INFO("Camera 1 planes markers publisher: %s\n", CAM1_POINTCLOUD_PLANE_MARKERS);
-	cam1_marker_pub = nh.advertise<visualization_msgs::Marker>(CAM1_POINTCLOUD_PLANE_MARKERS, 1);
+	cam1_marker_pub = nh->advertise<visualization_msgs::Marker>(CAM1_POINTCLOUD_PLANE_MARKERS, 1);
 
 	// Initialize camera 2 publishers.
 	ROS_INFO("Camera 2 PointCloud planes publisher: %s\n", CAM2_POINTCLOUD_PLANE);
-	cam2_planes_pub = nh.advertise< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD_PLANE, 1);
+	cam2_planes_pub = nh->advertise< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD_PLANE, 1);
 
 	ROS_INFO("Camera 2 planes markers publisher: %s\n", CAM2_POINTCLOUD_PLANE_MARKERS);
-	cam2_marker_pub = nh.advertise<visualization_msgs::Marker>(CAM2_POINTCLOUD_PLANE_MARKERS, 1);
+	cam2_marker_pub = nh->advertise<visualization_msgs::Marker>(CAM2_POINTCLOUD_PLANE_MARKERS, 1);
 
 	ros::MultiThreadedSpinner spinner(4); // Use 4 threads
    	spinner.spin();

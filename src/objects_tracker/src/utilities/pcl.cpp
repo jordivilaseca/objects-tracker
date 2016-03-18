@@ -45,47 +45,10 @@ void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl:
 }
 
 void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std::vector<pcl::PointIndices> &inliers) {
-	int numIn = inliers.size();
-	int step = (256*4)/numIn;
-	int r, g, b;
-	int i = 0;
-
-	// Red and blue are fixed, incrementing green from 0 to 255.
-	r = 255;
-	g = 0;
-	b = 0;
-	for(; g <= 255 and i < numIn; g += step) {
-		colourPointCloud(cloud, inliers[i].indices, r, g, b);
-		i++;
-	}
-
-	// Green and blue are fixed, decrementing red from 255 to 0.
-	r = 255 - (g - 256);
-	g = 255;
-	for(; r >= 0 and i < numIn; r -= step) {
-		colourPointCloud(cloud, inliers[i].indices, r, g, b);
-		i++;
-	}
-
-	// Red and green fixed, incrementing blue from 0 to 255.
-	b = -r;
-	r = 0;
-	for(; b <= 255 and i < numIn; b += step) {
-		colourPointCloud(cloud, inliers[i].indices, r, g, b);
-		i++;
-	}
-
-	// Red and blue fixed, decrementing green from 255 to 0.
-	g = 255 - (b - 256);
-	b = 255;
-	for(; g >= 0 and i < numIn; g -= step) {
-		colourPointCloud(cloud, inliers[i].indices, r, g, b);
-		i++;
-	}
-
-	int remaining = inliers.size() - i;
-	if(remaining != 0) {
-		ROS_WARN("colourPointCloud: Not all the regions have been painted, there are %i regions not painted.", remaining);
+	std::vector< std::vector<int> > colours;
+	computeColors(inliers.size(), colours);
+	for(int i = 0; i < colours.size(); i++) {
+		colourPointCloud(cloud, inliers[i].indices, colours[i][0], colours[i][1], colours[i][2]);
 	}
 }
 
@@ -130,7 +93,7 @@ double triangleArea(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, cons
  * r: End point of the second vector.
  * n: Normal of the plane containing the two vectors.
  */
-double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r, const pcl::Normal &n) {
+double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r, const std::vector<float> &n) {
 	double x1,y1,z1,x2,y2,z2, xn, yn, zn;
 
 	x1 = q.x - p.x;
@@ -141,24 +104,100 @@ double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZR
 	y2 = r.y - p.y;
 	z2 = r.z - p.z;
 
-	/*xn = n.data_c[0];
-	yn = n.data_c[1];
-	zn = n.data_c[2];
+	xn = n[0];
+	yn = n[1];
+	zn = n[2];
 
 	double dot = x1*x2 + y1*y2 + z1*z2;
 	double det = x1*y2*zn + x2*yn*z1 + xn*y1*z2 - z1*y2*xn - z2*yn*x1 - zn*y1*x2;
-	return atan2(det, dot);*/
+	double angle = atan2(det, dot);
+
+	return angle*57.2957795;
+}
+
+double vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
+	double x1,y1,z1,x2,y2,z2;
+
+	x1 = q.x - p.x;
+	y1 = q.y - p.y;
+	z1 = q.z - p.z;
+
+	x2 = r.x - p.x;
+	y2 = r.y - p.y;
+	z2 = r.z - p.z;
 
 	double dot = x1*x2 + y1*y2 + z1*z2;
 	double lenSq1 = x1*x1 + y1*y1 + z1*z1;
 	double lenSq2 = x2*x2 + y2*y2 + z2*z2;
 	double angle = acos(dot/sqrt(lenSq1 * lenSq2));
-	return angle;
+	return angle*57.2957795;
 }
+
+
+double distPoints(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q) {
+	double dx = p.x - q.x;
+	double dy = p.y - q.y;
+	double dz = p.z - q.z;
+	return dx*dx + dy*dy + dz*dz;
+}
+
+double orient3d(double pa, double pb, double pc, double pd) {
+  /*double adx, bdx, cdx;
+  double ady, bdy, cdy;
+  double adz, bdz, cdz;
+
+  adx = pa[0] - pd[0];
+  bdx = pb[0] - pd[0];
+  cdx = pc[0] - pd[0];
+  ady = pa[1] - pd[1];
+  bdy = pb[1] - pd[1];
+  cdy = pc[1] - pd[1];
+  adz = pa[2] - pd[2];
+  bdz = pb[2] - pd[2];
+  cdz = pc[2] - pd[2];
+
+  return adx * (bdy * cdz - bdz * cdy)
+       + bdx * (cdy * adz - cdz * ady)
+       + cdx * (ady * bdz - adz * bdy);*/
+}
+
+
 
 /***********************
     Polygon functions
 ***********************/
+
+void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const std::vector<float> &n, pcl::PointIndices &polygon) {
+
+	int npoints = polygon.indices.size();
+	std::priority_queue< pair<double,int> > q;
+
+	// Point inside plane 1.
+	pcl::PointXYZRGBA p1;
+	p1.x = 0;
+	p1.y = 0;
+	p1.z = n[3]/-n[2];
+
+	// Point inside plane 2.
+	pcl::PointXYZRGBA p2;
+	p2.x = 1;
+	p2.y = 1;
+	p2.z = (n[0] + n[1] +n[3])/-n[2];
+
+	// Insert pairs to a priority_queue.
+	for(int i = 0; i < npoints; i++) {
+		int pos = polygon.indices[i];
+		q.push(make_pair(vectAngle3dEmbeddedPlane(p1, p2, cloud->points[pos], n), pos));
+	}
+
+	// Get the ordered points.
+	for(int i = 0; i < npoints; i++) {
+		pair<double,int> pa = q.top();
+		q.pop();
+
+		polygon.indices[i] = pa.second;
+	}
+}
 
 /**
  *Algorithm inspired in https://bost.ocks.org/mike/simplify using lazy deletion in the queue to avoid
@@ -172,14 +211,13 @@ double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZR
  *WARNING: this can be done because we know for sure that the angles will always decrease (for the convexity of the polygon), and
  *the maximum angle will be always smaller than 180º.
  */
-void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &polygon, const pcl::Normal &n, pcl::PointIndices &simPolygon) {
+typedef pair<double, int> pdi;
+void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &polygon, const std::vector<float> &n, int maxPoints, pcl::PointIndices &simPolygon) {
 	int npoints = polygon->indices.size();
 	std::vector< pair<int,int> > neighbours = std::vector< pair<int,int> >(npoints, make_pair(-1,-1));
 	std::vector<int> duplicationsCounter = std::vector<int>(npoints, 0);
-	std::priority_queue< pair<double,int> > pqueue;
+	std::priority_queue< pdi > pqueue;
 	std::stack<int> idsStack;
-
-	int max_points = 5;
 
 	// Initialization of queue and neighbours.
 	for(int i = 0; i < npoints; i++) {
@@ -194,13 +232,12 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		r = cloud->points[polygon->indices[next]];
 
 		// Add angle and point identifier to the queue.
-		double angles = vectAngle3dEmbeddedPlane(p, q, r, n);
+		double angles = abs(vectAngle3dEmbeddedPlane(p, q, r, n));
 		pqueue.push(make_pair(angles, i));
 
 		// Initialize neighbours of the point.
 		neighbours[i] = make_pair(prev, next);
 	}
-
 	// Polygon simplification.
 	while(pqueue.size() > 1) {
 		pair<double, int> p = pqueue.top();
@@ -226,7 +263,7 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		// Update previous.
 		int prev2 = neighbours[prev].first;
 		pcl::PointXYZRGBA prev2Point = cloud->points[polygon->indices[prev2]];
-		double anglePrev = vectAngle3dEmbeddedPlane(prevPoint, prev2Point, nextPoint, n);
+		double anglePrev = abs(vectAngle3dEmbeddedPlane(prevPoint, prev2Point, nextPoint, n));
 		pqueue.push(make_pair(anglePrev, prev));
 		neighbours[prev].second = next;
 		duplicationsCounter[prev]++;
@@ -234,7 +271,7 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		// Update next.
 		int next2 = neighbours[next].second;
 		pcl::PointXYZRGBA next2Point = cloud->points[polygon->indices[next2]];
-		double angleNext = vectAngle3dEmbeddedPlane(nextPoint, prevPoint, next2Point, n);
+		double angleNext = abs(vectAngle3dEmbeddedPlane(nextPoint, prevPoint, next2Point, n));
 		pqueue.push(make_pair(angleNext, next));
 		neighbours[next].first = prev;
 		duplicationsCounter[next]++;
@@ -242,12 +279,6 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		// Update removed point.
 		neighbours[id] = make_pair(-1,-1);
 		duplicationsCounter[id]--;
-
-		for(int i = 0; i < neighbours.size(); i++) {
-		}
-
-		for(int i = 0; i < neighbours.size(); i++) {
-		}
 	}
 	int id = pqueue.top().second;
 	pqueue.pop();
@@ -256,11 +287,14 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 	// Copy results to simPolygon.
 	simPolygon = pcl::PointIndices();
 	simPolygon.header = polygon->header;
-	simPolygon.indices.resize(max_points);
-	for(int i = 0; i < max_points; i++) {
+	simPolygon.indices.resize(maxPoints);
+	for(int i = 0; i < maxPoints; i++) {
 		simPolygon.indices[i] = idsStack.top();
 		idsStack.pop();
 	}
+
+	// Order simPolygon indices.
+	orderConvexPolygon(cloud, n, simPolygon);
 	idsStack = stack<int>();
 }
 
@@ -313,6 +347,7 @@ void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, c
 	pcl::ConvexHull<pcl::PointXYZRGBA> chull;
 	chull.setInputCloud(cloud);
 	chull.setIndices(inputIndices);
+	chull.setDimension(2);
 	chull.reconstruct(*cloud_hull);
 	chull.getHullPointIndices(hullIndices); 
 }
@@ -332,4 +367,56 @@ void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const
 	ec.setSearchMethod(tree);
 	ec.setInputCloud(cloud);
 	ec.extract(clusterIndices);
+}
+
+/***********************
+    Plane functions
+***********************/
+
+void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::ModelCoefficients modelCoef, float threshold, pcl::IndicesPtr &inliers) {
+	Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
+	int totalPoints = cloud->points.size();
+	int nr_p = 0;
+	inliers = pcl::IndicesPtr(new vector<int>());
+	inliers->resize(totalPoints);
+	// Iterate through the 3d points and calculate the distances from them to the plane
+
+	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
+	for(size_t i = 0; i < totalPoints; i++) {
+		// Calculate the distance from the point to the plane normal as the dot product
+		// D =(P-A).N/|N|
+		Eigen::Vector4f pt(cloud->points[i].x,
+		                    cloud->points[i].y,
+		                    cloud->points[i].z,
+		                    1);
+
+		float distance = fabsf(coef.dot(pt));
+		if(distance < threshold) {
+			// Returns the indices of the points whose distances are smaller than the threshold
+			//#pragma omp critical
+			//{
+				(*inliers)[nr_p] = i;
+				nr_p++;
+			//}
+		}
+	}
+	inliers->resize(nr_p);
+
+	/*Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
+	pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (cloud));
+	inliers = pcl::IndicesPtr(new vector<int>());
+
+	// Get plane inliers using 'coef' as plane coefficients.
+	dit->selectWithinDistance(coef, maxDist, *inliers);*/
+}
+
+void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::ModelCoefficients::ConstPtr modelCoef, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &projCloud) {
+
+	projCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+	pcl::ProjectInliers<pcl::PointXYZRGBA> proj;
+	proj.setModelType(pcl::SACMODEL_PLANE);
+	proj.setInputCloud(cloud);
+	proj.setModelCoefficients(modelCoef);
+	proj.filter(*projCloud);
 }
