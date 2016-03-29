@@ -141,24 +141,31 @@ double distPoints(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q) {
 	return dx*dx + dy*dy + dz*dz;
 }
 
-double orient3d(double pa, double pb, double pc, double pd) {
-  /*double adx, bdx, cdx;
-  double ady, bdy, cdy;
-  double adz, bdz, cdz;
+/*
+ * It returns the orientation of the point pd, using as a reference the plane limited by pa, pb and pc.
+ */
+int orient3d(const pcl::PointXYZRGBA &pa, const pcl::PointXYZRGBA &pb, const pcl::PointXYZRGBA &pc, const pcl::PointXYZRGBA &pd) {
+	double adx, bdx, cdx;
+	double ady, bdy, cdy;
+	double adz, bdz, cdz;
 
-  adx = pa[0] - pd[0];
-  bdx = pb[0] - pd[0];
-  cdx = pc[0] - pd[0];
-  ady = pa[1] - pd[1];
-  bdy = pb[1] - pd[1];
-  cdy = pc[1] - pd[1];
-  adz = pa[2] - pd[2];
-  bdz = pb[2] - pd[2];
-  cdz = pc[2] - pd[2];
+	adx = pa.x - pd.x;
+	bdx = pb.x - pd.x;
+	cdx = pc.x - pd.x;
+	ady = pa.y - pd.y;
+	bdy = pb.y - pd.y;
+	cdy = pc.y - pd.y;
+	adz = pa.z - pd.z;
+	bdz = pb.z - pd.z;
+	cdz = pc.z - pd.z;
 
-  return adx * (bdy * cdz - bdz * cdy)
-       + bdx * (cdy * adz - cdz * ady)
-       + cdx * (ady * bdz - adz * bdy);*/
+	double orientation = adx * (bdy * cdz - bdz * cdy)
+					+ bdx * (cdy * adz - cdz * ady)
+					+ cdx * (ady * bdz - adz * bdy);
+
+	if (orientation < 0.0) return -1;
+	if (orientation > 0.0) return +1;
+	return 0;
 }
 
 
@@ -167,22 +174,80 @@ double orient3d(double pa, double pb, double pc, double pd) {
     Polygon functions
 ***********************/
 
+void polygonCenter(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &polygon, std::vector<double> &center) {
+	int ndim = 3;
+	center = std::vector<double>(ndim, 0.0);
+	for(int i = 0; i < polygon.indices.size(); i++) {
+		int p = polygon.indices[i];
+		center[0] += cloud->points[p].x;
+		center[1] += cloud->points[p].y;
+		center[2] += cloud->points[p].z;
+	}
+
+	for(int j = 0; j < ndim; j++) {
+		center[j] /= (float) polygon.indices.size();
+	}
+}
+
+bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int point, const pcl::PointIndices &polygon, const std::vector<float> &n) {
+
+	/*pcl::PointXYZRGBA p = cloud->points[point];
+	int relPos = orient3d(t[0], t[1], t[2]);
+    bool isEdge = false;
+    int npoints = polygon.indices.size();
+
+	for(int i = 0; i <= npoints; i++) {
+		int pos = polygon.indices[i];
+        pcl::PointXYZRGBA p0 = cloud->points[pos];
+        pcl::PointXYZRGBA p1 = cloud->points[(pos+1) % npoints];
+        pcl::PointXYZRGBA p2 = pcl::PointXYZRGBA(p0.x + n[0], p0.y + n[1], p0.z + n[2]);
+
+		// We get the relative position of the third vertex of the triangle relative the
+		// first and the second one. If a point is inside the polygon, it's relative position
+		// must be the same for all segments of the triangle.
+		int currRelPos = orient3d(p0, p1, p2, p);
+
+		if (relPos != currRelPos) {
+			// It can be outside or on the boundary. 
+			if(currRelPos == 0) {
+				// In the boundary of the triangle.
+				if(p == v0 or p == v1) {
+					// On a vertex of the triangle.
+					return true;
+				} else {
+					// On the boundary.
+                    isEdge = true;
+				}
+			} else {
+				// On the exerior of the triangle.
+				return false;
+			}
+		}
+	}
+
+	// The point is inside the polygon or in the boundary.
+    return true;*/
+}
+
 void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const std::vector<float> &n, pcl::PointIndices &polygon) {
 
 	int npoints = polygon.indices.size();
 	std::priority_queue< pair<double,int> > q;
 
+	std::vector<double> center;
+	polygonCenter(cloud, polygon, center);
+
 	// Point inside plane 1.
 	pcl::PointXYZRGBA p1;
-	p1.x = 0;
-	p1.y = 0;
-	p1.z = n[3]/-n[2];
+	p1.x = center[0];
+	p1.y = center[1];
+	p1.z = (p1.x*n[0] + p1.y*n[1] + n[3])/-n[2];
 
 	// Point inside plane 2.
 	pcl::PointXYZRGBA p2;
-	p2.x = 1;
-	p2.y = 1;
-	p2.z = (n[0] + n[1] +n[3])/-n[2];
+	p2.x = center[0];
+	p2.y = center[1] + 1;
+	p2.z = (p2.x*n[0] + p2.y*n[1] + n[3])/-n[2];
 
 	// Insert pairs to a priority_queue.
 	for(int i = 0; i < npoints; i++) {
@@ -232,7 +297,7 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		r = cloud->points[polygon->indices[next]];
 
 		// Add angle and point identifier to the queue.
-		double angles = abs(vectAngle3dEmbeddedPlane(p, q, r, n));
+		double angles = fabs(vectAngle3dEmbeddedPlane(p, q, r, n));
 		pqueue.push(make_pair(angles, i));
 
 		// Initialize neighbours of the point.
@@ -263,7 +328,7 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		// Update previous.
 		int prev2 = neighbours[prev].first;
 		pcl::PointXYZRGBA prev2Point = cloud->points[polygon->indices[prev2]];
-		double anglePrev = abs(vectAngle3dEmbeddedPlane(prevPoint, prev2Point, nextPoint, n));
+		double anglePrev = fabs(vectAngle3dEmbeddedPlane(prevPoint, prev2Point, nextPoint, n));
 		pqueue.push(make_pair(anglePrev, prev));
 		neighbours[prev].second = next;
 		duplicationsCounter[prev]++;
@@ -271,7 +336,7 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 		// Update next.
 		int next2 = neighbours[next].second;
 		pcl::PointXYZRGBA next2Point = cloud->points[polygon->indices[next2]];
-		double angleNext = abs(vectAngle3dEmbeddedPlane(nextPoint, prevPoint, next2Point, n));
+		double angleNext = fabs(vectAngle3dEmbeddedPlane(nextPoint, prevPoint, next2Point, n));
 		pqueue.push(make_pair(angleNext, next));
 		neighbours[next].first = prev;
 		duplicationsCounter[next]++;
@@ -302,6 +367,7 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
   Point cloud functions
 ***********************/
 
+/* It does not work properly */
 void findLines(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, std::vector<pcl::ModelCoefficients> &coef) {
 	// Cloud containing the points without the planes.
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));

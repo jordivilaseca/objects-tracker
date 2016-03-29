@@ -147,7 +147,7 @@ int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 
 	// Simplify convex polygon.
 	planeLimits = pcl::PointIndices();
-	polygonSimplification(cloud, hullIndicesPtr, planeCoefficients.values, 4, planeLimits);
+	polygonSimplification(projectedCloud, hullIndicesPtr, planeCoefficients.values, 4, planeLimits);
 	return planeLimits.indices.size();
 }
 
