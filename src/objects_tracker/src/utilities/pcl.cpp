@@ -72,6 +72,14 @@ void colourLine(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::Point
     Point functions
 ***********************/
 
+pcl::PointXYZRGBA createXYZRGBA(double x, double y, double z) {
+	pcl::PointXYZRGBA p = pcl::PointXYZRGBA();
+	p.x = x;
+	p.y = y;
+	p.z = z;
+	return p;
+}
+
 /**
  * Compute the area between two vectors (pq and pr).
  */
@@ -189,44 +197,45 @@ void polygonCenter(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	}
 }
 
-bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int point, const pcl::PointIndices &polygon, const std::vector<float> &n) {
+bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int point, const pcl::PointIndices &polygon, const Eigen::Vector4f &n) {
 
-	/*pcl::PointXYZRGBA p = cloud->points[point];
-	int relPos = orient3d(t[0], t[1], t[2]);
-    bool isEdge = false;
+	pcl::PointXYZRGBA p = cloud->points[point];
     int npoints = polygon.indices.size();
+	pcl::PointXYZRGBA p0 = cloud->points[polygon.indices[0]];
+	// cout << "p0i " << p0 << endl;
+    pcl::PointXYZRGBA p1 = cloud->points[polygon.indices[1]];
+    // cout << "p1i " << p1 << endl;
+    pcl::PointXYZRGBA p2 = createXYZRGBA(p0.x + n[0], p0.y + n[1], p0.z + n[2]);
+    // cout << "p2i " << p2 << endl;
+	int relPos = orient3d(p0, p1, p2, p);
+	// cout << "RelPos " << relPos << endl;
 
-	for(int i = 0; i <= npoints; i++) {
-		int pos = polygon.indices[i];
-        pcl::PointXYZRGBA p0 = cloud->points[pos];
-        pcl::PointXYZRGBA p1 = cloud->points[(pos+1) % npoints];
-        pcl::PointXYZRGBA p2 = pcl::PointXYZRGBA(p0.x + n[0], p0.y + n[1], p0.z + n[2]);
+	for(int i = 1; i < npoints; i++) {
+		int pos0 = polygon.indices[i];
+		int pos1 = polygon.indices[(i+1) % npoints];
+        pcl::PointXYZRGBA p0 = cloud->points[pos0];
+        // cout << "p0 " << p0 << endl;
+        pcl::PointXYZRGBA p1 = cloud->points[pos1];
+        // cout << "p1 " << p1 << endl;
+        pcl::PointXYZRGBA p2 = createXYZRGBA(p0.x + n[0], p0.y + n[1], p0.z + n[2]);
+        // cout << "p2 " << p2 << endl;
+        // cout << "p  " << p << endl;
 
 		// We get the relative position of the third vertex of the triangle relative the
 		// first and the second one. If a point is inside the polygon, it's relative position
 		// must be the same for all segments of the triangle.
 		int currRelPos = orient3d(p0, p1, p2, p);
+		// cout << "currRelPos" << currRelPos << endl;
 
 		if (relPos != currRelPos) {
-			// It can be outside or on the boundary. 
-			if(currRelPos == 0) {
-				// In the boundary of the triangle.
-				if(p == v0 or p == v1) {
-					// On a vertex of the triangle.
-					return true;
-				} else {
-					// On the boundary.
-                    isEdge = true;
-				}
-			} else {
-				// On the exerior of the triangle.
-				return false;
-			}
+			// cout << "false!" << endl;
+			return false;
 		}
 	}
 
 	// The point is inside the polygon or in the boundary.
-    return true;*/
+	// cout << "true!" << endl;
+    return true;
 }
 
 void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const std::vector<float> &n, pcl::PointIndices &polygon) {
@@ -439,7 +448,8 @@ void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const
     Plane functions
 ***********************/
 
-void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::ModelCoefficients modelCoef, float threshold, pcl::IndicesPtr &inliers) {
+void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, float threshold, pcl::IndicesPtr &inliers) {
+
 	Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
 	int totalPoints = cloud->points.size();
 	int nr_p = 0;
@@ -474,6 +484,50 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 
 	// Get plane inliers using 'coef' as plane coefficients.
 	dit->selectWithinDistance(coef, maxDist, *inliers);*/
+}
+
+void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, const pcl::PointIndices &limit,  float threshold, pcl::IndicesPtr &inliers) {
+
+	//cout << modelCoef << limit << " " << threshold << " " << inliers;
+	Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
+	int totalPoints = cloud->points.size();
+	int nr_p = 0;
+	inliers = pcl::IndicesPtr(new vector<int>());
+	inliers->resize(totalPoints);
+	int counter = 0;
+	// Iterate through the 3d points and calculate the distances from them to the plane
+	//cout << limit << endl;
+	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
+	for(size_t i = 0; i < totalPoints; i++) {
+		// Calculate the distance from the point to the plane normal as the dot product
+		// D =(P-A).N/|N|
+
+		//if(isnan(cloud->points[i].x)) continue;
+
+		Eigen::Vector4f pt(cloud->points[i].x,
+		                    cloud->points[i].y,
+		                    cloud->points[i].z,
+		                    1);
+
+		float distance = fabsf(coef.dot(pt));
+		bool isI;
+		if(distance < threshold and (isI = isInlier(cloud, i, limit, coef))) {
+			if(isI) counter++;
+			// Returns the indices of the points whose distances are smaller than the threshold
+			//#pragma omp critical
+			//{
+				(*inliers)[nr_p] = i;
+				nr_p++;
+			//}
+		}
+	}
+	cout << "counter: " << counter << endl;
+	/*if (counter < 200000) {
+		for(int i = 0; i < inliers->size();i++) {
+			cout << "i: " << i << ",p: " << cloud->points[(*inliers)[i]] << endl;
+		}
+	}*/
+	inliers->resize(nr_p);
 }
 
 void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::ModelCoefficients::ConstPtr modelCoef, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &projCloud) {

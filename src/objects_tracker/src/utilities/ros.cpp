@@ -1,6 +1,6 @@
 #include <objects_tracker/utilities/ros.hpp>
 
-visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[]) {
+visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], int color[]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
 	marker.header.stamp = ros::Time();
@@ -25,7 +25,7 @@ visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t ty
 	return marker;
 }
 
-visualization_msgs::Marker buildLineMarker(std::string frame_id, int id, std::vector< std::vector<double> > pos, double width, double color[]) {
+visualization_msgs::Marker buildLineMarker(std::string frame_id, int id, std::vector< std::vector<double> > pos, double width, int color[]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
 	marker.header.stamp = ros::Time();
@@ -62,7 +62,7 @@ void buildLineMarkers(std::string frame_id, std::vector< std::vector< std::vecto
 	computeColors(positions.size(), colours);
 	int markerid = 0;
 	for(int i = 0; i < colours.size(); i++) {
-		double colour[] = {colours[i][0], colours[i][1], colours[i][2], 255};
+		int colour[] = {colours[i][0], colours[i][1], colours[i][2], 255};
 		markers.push_back(buildLineMarker(frame_id, markerid, positions[i], width, colour));
 		markerid++;
 	}
@@ -76,7 +76,7 @@ void buildMarkers(std::string frame_id, uint32_t type, std::vector< std::vector<
 	int markerid = 0;
 	for(int i = 0; i < colours.size(); i++) {
 		for(int j = 0; j < colours[i].size(); j++) {
-			double colour[] = {colours[i][0], colours[i][1], colours[i][2], 255};
+			int colour[] = {colours[i][0], colours[i][1], colours[i][2], 255};
 			double pos[] = {positions[i][j][0], positions[i][j][1], positions[i][j][2]};
 			markers.push_back(buildMarker(frame_id, markerid, type, pos, scale, colour));
 			markerid++;

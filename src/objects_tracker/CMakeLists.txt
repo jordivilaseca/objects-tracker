@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(objects_tracker)
 
+#set(CMAKE_CXX_FLAGS "-std=c++0x ${CMAKE_CXX_FLAGS}")
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -199,7 +201,7 @@ include_directories(
 
 find_package(OpenCV REQUIRED)
 find_package(PCL 1.8 REQUIRED)
-find_package(CUDA 5.5 REQUIRED)
+#find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP REQUIRED)
 
 # OPENMP
@@ -239,6 +241,11 @@ add_library(ros src/utilities/ros.cpp)
 target_link_libraries(ros ${catkin_LIBRARIES} utilities)
 
 # extract_plane node
-add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
-target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})
-add_dependencies(extract_plane opencv_nonfree249d.lib utilities)
+add_executable(extract_plane src/extract_plane.cpp)
+target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros)
+add_dependencies(extract_plane opencv_nonfree249d.lib)
+
+# example cuda compiler
+# add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
+# target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})
+# add_dependencies(extract_plane opencv_nonfree249d.lib utilities)
