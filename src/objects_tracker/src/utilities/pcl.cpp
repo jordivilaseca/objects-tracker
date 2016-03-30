@@ -502,7 +502,7 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 		// Calculate the distance from the point to the plane normal as the dot product
 		// D =(P-A).N/|N|
 
-		//if(isnan(cloud->points[i].x)) continue;
+		if(isnan(cloud->points[i].x)) continue;
 
 		Eigen::Vector4f pt(cloud->points[i].x,
 		                    cloud->points[i].y,
@@ -521,7 +521,7 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 			//}
 		}
 	}
-	cout << "counter: " << counter << endl;
+	//cout << "counter: " << counter << endl;
 	/*if (counter < 200000) {
 		for(int i = 0; i < inliers->size();i++) {
 			cout << "i: " << i << ",p: " << cloud->points[(*inliers)[i]] << endl;
