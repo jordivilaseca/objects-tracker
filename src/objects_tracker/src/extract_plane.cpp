@@ -87,12 +87,8 @@ ros::Publisher cam2_planes_pub;
 ros::Publisher cam2_marker_pub;
 
 // Node subscribers.
-ros::Subscriber cam1_plane_sub;
-ros::Subscriber cam1_limits_sub; 
-ros::Subscriber cam1_coef_sub;
-ros::Subscriber cam2_plane_sub;
-ros::Subscriber cam2_limits_sub;
-ros::Subscriber cam2_coef_sub;
+ros::Subscriber cam1_sub;
+ros::Subscriber cam2_sub;
 
 // Masks (one for each plane)
 std::vector<pcl::PointIndices> mask_points_cam1;
@@ -259,8 +255,7 @@ void planes_coefficients_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr
 			m1_coef.unlock();
 		}
 		existsPlaneCam1 = true;
-		cam1_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &calculate_limits_cam1);
-		cam1_coef_sub.shutdown();
+		cam1_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &calculate_limits_cam1);
 		ROS_INFO("Calculated coefficients camera 1");
 	}
 }
@@ -280,8 +275,7 @@ void planes_coefficients_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr
 			m1_coef.unlock();
 		}
 		existsPlaneCam2 = true;
-		cam2_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &calculate_limits_cam2);
-		cam2_coef_sub.shutdown();
+		cam2_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &calculate_limits_cam2);
 		ROS_INFO("Calculated coefficients camera 2");
 	}
 }
@@ -388,9 +382,7 @@ void calculate_limits_cam1(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 	if(iter_cam1 == max_iter) {
 		calculate_limits(cloud, mask_points_cam1, coefficients_cam1, m1_limits, limits_cam1);
 		publish_limits(cloud, cam1_marker_pub, "cam1_link", limits_cam1);
-		cam1_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &remove_planes_cam1);
-		cam1_limits_sub.shutdown();
-
+		cam1_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &remove_planes_cam1);
 	}
 }
 
@@ -408,9 +400,7 @@ void calculate_limits_cam2(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
 	if(iter_cam2 == max_iter) {
 		calculate_limits(cloud, mask_points_cam2, coefficients_cam2, m2_limits, limits_cam2);
 		publish_limits(cloud, cam2_marker_pub, "cam2_link", limits_cam2);
-		cam2_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &remove_planes_cam2);
-		cam2_limits_sub.shutdown();
-
+		cam2_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &remove_planes_cam2);
 	}
 }
 
@@ -444,15 +434,11 @@ int main(int argc, char **argv) {
 
   	// Initialize camera 1 subscribers.
   	ROS_INFO("Camera 1 subscribers: %s\n", CAM1_POINTCLOUD);
- 	//cam1_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &remove_planes_cam1);
- 	//cam1_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &calculate_limits_cam1);
- 	cam1_coef_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &planes_coefficients_cam1);
+ 	cam1_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM1_POINTCLOUD, 1, &planes_coefficients_cam1);
 
 	// Initialize camera 2 subscribers.
 	ROS_INFO("Camera 2 subscribers: %s\n", CAM2_POINTCLOUD);
- 	//cam2_plane_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &remove_planes_cam2);
- 	//cam2_limits_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &calculate_limits_cam2);
- 	cam2_coef_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &planes_coefficients_cam2);
+ 	cam2_sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(CAM2_POINTCLOUD, 1, &planes_coefficients_cam2);
 
  	// Initialize camera 1 publishers.
 	ROS_INFO("Camera 1 PointCloud planes publisher: %s\n", CAM1_POINTCLOUD_PLANE);
