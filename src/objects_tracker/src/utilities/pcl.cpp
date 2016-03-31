@@ -197,44 +197,31 @@ void polygonCenter(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	}
 }
 
-bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int point, const pcl::PointIndices &polygon, const Eigen::Vector4f &n) {
+bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int point, const std::vector<pcl::PointXYZRGBA> &polygon, const Eigen::Vector4f &n) {
 
 	pcl::PointXYZRGBA p = cloud->points[point];
-    int npoints = polygon.indices.size();
-	pcl::PointXYZRGBA p0 = cloud->points[polygon.indices[0]];
-	// cout << "p0i " << p0 << endl;
-    pcl::PointXYZRGBA p1 = cloud->points[polygon.indices[1]];
-    // cout << "p1i " << p1 << endl;
+    int npoints = polygon.size();
+	pcl::PointXYZRGBA p0 = polygon[0];
+    pcl::PointXYZRGBA p1 = polygon[1];
     pcl::PointXYZRGBA p2 = createXYZRGBA(p0.x + n[0], p0.y + n[1], p0.z + n[2]);
-    // cout << "p2i " << p2 << endl;
 	int relPos = orient3d(p0, p1, p2, p);
-	// cout << "RelPos " << relPos << endl;
 
 	for(int i = 1; i < npoints; i++) {
-		int pos0 = polygon.indices[i];
-		int pos1 = polygon.indices[(i+1) % npoints];
-        pcl::PointXYZRGBA p0 = cloud->points[pos0];
-        // cout << "p0 " << p0 << endl;
-        pcl::PointXYZRGBA p1 = cloud->points[pos1];
-        // cout << "p1 " << p1 << endl;
+        pcl::PointXYZRGBA p0 = polygon[i];
+        pcl::PointXYZRGBA p1 = polygon[(i+1) % npoints];
         pcl::PointXYZRGBA p2 = createXYZRGBA(p0.x + n[0], p0.y + n[1], p0.z + n[2]);
-        // cout << "p2 " << p2 << endl;
-        // cout << "p  " << p << endl;
 
 		// We get the relative position of the third vertex of the triangle relative the
 		// first and the second one. If a point is inside the polygon, it's relative position
 		// must be the same for all segments of the triangle.
 		int currRelPos = orient3d(p0, p1, p2, p);
-		// cout << "currRelPos" << currRelPos << endl;
 
 		if (relPos != currRelPos) {
-			// cout << "false!" << endl;
 			return false;
 		}
 	}
 
 	// The point is inside the polygon or in the boundary.
-	// cout << "true!" << endl;
     return true;
 }
 
@@ -477,26 +464,17 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 		}
 	}
 	inliers->resize(nr_p);
-
-	/*Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
-	pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA>::Ptr dit(new pcl::SampleConsensusModelPlane<pcl::PointXYZRGBA> (cloud));
-	inliers = pcl::IndicesPtr(new vector<int>());
-
-	// Get plane inliers using 'coef' as plane coefficients.
-	dit->selectWithinDistance(coef, maxDist, *inliers);*/
 }
 
-void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, const pcl::PointIndices &limit,  float threshold, pcl::IndicesPtr &inliers) {
+void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, const std::vector<pcl::PointXYZRGBA> &limit, float threshold, pcl::IndicesPtr &inliers) {
 
-	//cout << modelCoef << limit << " " << threshold << " " << inliers;
 	Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
 	int totalPoints = cloud->points.size();
 	int nr_p = 0;
 	inliers = pcl::IndicesPtr(new vector<int>());
 	inliers->resize(totalPoints);
-	int counter = 0;
+
 	// Iterate through the 3d points and calculate the distances from them to the plane
-	//cout << limit << endl;
 	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
 	for(size_t i = 0; i < totalPoints; i++) {
 		// Calculate the distance from the point to the plane normal as the dot product
@@ -510,9 +488,7 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 		                    1);
 
 		float distance = fabsf(coef.dot(pt));
-		bool isI;
-		if(distance < threshold and (isI = isInlier(cloud, i, limit, coef))) {
-			if(isI) counter++;
+		if(distance < threshold and isInlier(cloud, i, limit, coef)) {
 			// Returns the indices of the points whose distances are smaller than the threshold
 			//#pragma omp critical
 			//{
@@ -521,12 +497,6 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 			//}
 		}
 	}
-	//cout << "counter: " << counter << endl;
-	/*if (counter < 200000) {
-		for(int i = 0; i < inliers->size();i++) {
-			cout << "i: " << i << ",p: " << cloud->points[(*inliers)[i]] << endl;
-		}
-	}*/
 	inliers->resize(nr_p);
 }
 

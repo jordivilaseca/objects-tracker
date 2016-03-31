@@ -37,7 +37,7 @@ struct kinect {
 		pcl::PointIndices mask_points;
 		std::vector<int> mask_cumulative;
 		pcl::ModelCoefficients coefficients;
-		pcl::PointIndices limits;
+		std::vector<pcl::PointXYZRGBA> limits;
 	};
 	int nplanes;
 	int iter;
@@ -124,7 +124,6 @@ int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 }
 
 void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int nplanes, std::vector<pcl::ModelCoefficients> &coefficients, std::vector<pcl::PointIndices::Ptr> &inliers) {
-	long long init = getTime();
 
 	// Cloud containing the points without the planes.
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
@@ -159,7 +158,6 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 		extract.setNegative(true);
 		extract.filter(*remainingCloud);
 	}
-	ROS_INFO("Calculated plane coefficients, total time %llu", (getTime() - init));
 }
 
 void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
@@ -183,16 +181,17 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			k.m_coef.unlock();
 
 			k.m_limits.lock();
-			pcl::PointIndices planeLimits = k.planes[i].limits;
+			std::vector<pcl::PointXYZRGBA> planeLimits = k.planes[i].limits;
 			k.m_limits.unlock();
 
 			findPlaneInliers(remainingCloud, planeCoef, planeLimits, 0.02, inliers);
+			colourPointCloud(remainingCloud, inliers, 0, 255, 0);
 
 			// Extract the plane inliers from the remainingCloud.
-			extract.setInputCloud(remainingCloud);
-			extract.setIndices(inliers);
-			extract.setNegative(true);
-			extract.filter(*remainingCloud);
+			// extract.setInputCloud(remainingCloud);
+			// extract.setIndices(inliers);
+			// extract.setNegative(true);
+			// extract.filter(*remainingCloud);
 		}
 
 		total_time += getTime()-init;
@@ -208,7 +207,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 	}
 }
 
-void initialize_limits(kinect& k, int size) {
+void initialize_limits(kinect &k, int size) {
 	k.iter = 0;
 	for(int i = 0; i < NUM_PLANES; i++) {
 		k.planes[i].mask_cumulative.resize(size, 0);
@@ -237,16 +236,20 @@ void update_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 }
 
 void finish_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
-
 	// Find the points that define the limit of each plane.
 	for(int i = 0; i < k.nplanes; i++) {
-		pcl::PointIndices planeLimits = pcl::PointIndices();
+		pcl::PointIndices planeLimits;
 		pcl::PointIndices::ConstPtr planeIndicesConstPtr = boost::make_shared<pcl::PointIndices>(k.planes[i].mask_points);
 		int nplanes = getPlaneLimits(cloud, planeIndicesConstPtr, k.planes[i].coefficients, planeLimits);
 
+		std::vector<pcl::PointXYZRGBA> limits = std::vector<pcl::PointXYZRGBA>(planeLimits.indices.size());
+		for(int j = 0; j < limits.size(); j++) {
+			limits[j] = cloud->points[planeLimits.indices[j]];
+		}
+
 		// Safe copy of the limits.
 		k.m_limits.lock();
-		k.planes[i].limits = planeLimits;
+		k.planes[i].limits = limits;
 		k.m_limits.unlock();
 	}
 	ROS_INFO("Calculated limits %s", k.id.c_str());
@@ -256,11 +259,9 @@ void publish_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, k
 	if (k.marker_pub.getNumSubscribers() > 0) {
 		std::vector< std::vector< std::vector<double> > > positions = std::vector< std::vector< std::vector<double> > >(k.nplanes);
 		for(int i = 0; i < k.nplanes; i++) {
-			for(int j = 0; j < k.planes[i].limits.indices.size(); j++) {
-				pcl::PointIndices planeLimits = k.planes[i].limits;
-				int ppos = planeLimits.indices[j];
+			for(int j = 0; j < k.planes[i].limits.size(); j++) {
+				pcl::PointXYZRGBA p = k.planes[i].limits[j];
 
-				pcl::PointXYZRGBA p = cloud->points[ppos];
 				std::vector<double> pos = std::vector<double>(3);
 				pos[0] = p.x;
 				pos[1] = p.y;
@@ -309,7 +310,10 @@ void planes_coefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 	// Get plane coefficients and indices.
 	std::vector<pcl::ModelCoefficients> planesCoefficients;
 	std::vector<pcl::PointIndices::Ptr> planesIndices;
+
+	long long init = getTime();
 	getPlanes(cloud, NUM_PLANES, planesCoefficients, planesIndices);
+	ROS_INFO("Calculated plane coefficients %s, total time %llu", k.id.c_str(), (getTime() - init));
 
 	// Safe copy of the coefficients to the global variable.
 	for(int i = 0; i < k.planes.size(); i++) {
@@ -318,7 +322,6 @@ void planes_coefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 		k.m_coef.unlock();
 	}
 	k.sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(k.sub_channel, 1, boost::bind(calculate_limits, _1, boost::ref(k)));
-	ROS_INFO("Calculated coefficients %s", k.id.c_str());
 }
 
 int main(int argc, char **argv) {
