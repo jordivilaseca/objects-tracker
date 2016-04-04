@@ -3,7 +3,6 @@
 using namespace std;
 
 // Cluster variables.
-const int MIN_CLUSTER_POINTS = 10000;
 const int MAX_CLUSTER_POINTS = 500000;
 
 long long getTime(){
@@ -383,7 +382,7 @@ void findLines(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointI
 	// Create the filtering object.
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 
-	// At each step, one plane is removed from remainingCloud.
+	// At each step, one line is removed from remainingCloud.
 	for(int i = 0; i < 4; i++){
 
 		pcl::PointIndices::Ptr inliers = pcl::PointIndices::Ptr(new pcl::PointIndices());
@@ -414,17 +413,17 @@ void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, c
 	chull.getHullPointIndices(hullIndices); 
 }
 
-void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, std::vector<pcl::PointIndices> &clusterIndices) {
+void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
-	tree->setInputCloud(cloud);
+	tree->setInputCloud(cloud, boost::make_shared<std::vector<int>>(inputIndices->indices));
 
 	clusterIndices = std::vector<pcl::PointIndices>();
 
 	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
-	ec.setClusterTolerance(0.005);	// 1cm
+	ec.setClusterTolerance(tolerance);	// 1cm
 	ec.setIndices(inputIndices);
-	ec.setMinClusterSize(MIN_CLUSTER_POINTS);
+	ec.setMinClusterSize(minSize);
 	ec.setMaxClusterSize(MAX_CLUSTER_POINTS);
 	ec.setSearchMethod(tree);
 	ec.setInputCloud(cloud);
@@ -455,40 +454,6 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 
 		float distance = fabsf(coef.dot(pt));
 		if(distance < threshold) {
-			// Returns the indices of the points whose distances are smaller than the threshold
-			//#pragma omp critical
-			//{
-				(*inliers)[nr_p] = i;
-				nr_p++;
-			//}
-		}
-	}
-	inliers->resize(nr_p);
-}
-
-void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, const std::vector<pcl::PointXYZRGBA> &limit, float threshold, pcl::IndicesPtr &inliers) {
-
-	Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
-	int totalPoints = cloud->points.size();
-	int nr_p = 0;
-	inliers = pcl::IndicesPtr(new vector<int>());
-	inliers->resize(totalPoints);
-
-	// Iterate through the 3d points and calculate the distances from them to the plane
-	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
-	for(size_t i = 0; i < totalPoints; i++) {
-		// Calculate the distance from the point to the plane normal as the dot product
-		// D =(P-A).N/|N|
-
-		if(isnan(cloud->points[i].x)) continue;
-
-		Eigen::Vector4f pt(cloud->points[i].x,
-		                    cloud->points[i].y,
-		                    cloud->points[i].z,
-		                    1);
-
-		float distance = fabsf(coef.dot(pt));
-		if(distance < threshold and isInlier(cloud, i, limit, coef)) {
 			// Returns the indices of the points whose distances are smaller than the threshold
 			//#pragma omp critical
 			//{

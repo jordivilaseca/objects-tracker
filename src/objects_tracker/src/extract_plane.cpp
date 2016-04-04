@@ -92,7 +92,7 @@ std::vector<kinect> ks;
 int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, const pcl::ModelCoefficients &planeCoefficients, pcl::PointIndices &planeLimits) {
 
 	std::vector<pcl::PointIndices> clusterIndices;
-	clustering(cloud, inputIndices, clusterIndices);
+	clustering(cloud, inputIndices, 0.005, 10000, clusterIndices);
 
 	if (clusterIndices.size() == 0) return 0;
 
@@ -167,12 +167,10 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 		
 		long long init = getTime();
 
-		// Create the filtering object.
-		pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+		// -1 -> part of a plane, 0 -> not part of an object, 1 -> part of an object.
+		std::vector<char> mask = std::vector<char>(cloud->points.size(), 0);
 
 		for(int i = 0; i < k.nplanes; i++) {
-
-			pcl::IndicesPtr inliers = pcl::IndicesPtr(new vector<int>());
 
 			// Safe load of the coefficients of the global variable.
 			k.m_coef.lock();
@@ -180,19 +178,46 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			Eigen::Vector4f coef = Eigen::Vector4f(planeCoef.values.data());
 			k.m_coef.unlock();
 
+			// Safe load of the limits of the global variable.
 			k.m_limits.lock();
 			std::vector<pcl::PointXYZRGBA> planeLimits = k.planes[i].limits;
 			k.m_limits.unlock();
 
-			findPlaneInliers(remainingCloud, planeCoef, planeLimits, 0.02, inliers);
-			colourPointCloud(remainingCloud, inliers, 0, 255, 0);
+			//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
+			for(size_t j = 0; j < cloud->points.size(); j++) {
+				// Calculate the distance from the point to the plane normal as the dot product
+				// D =(P-A).N/|N|
 
-			// Extract the plane inliers from the remainingCloud.
-			// extract.setInputCloud(remainingCloud);
-			// extract.setIndices(inliers);
-			// extract.setNegative(true);
-			// extract.filter(*remainingCloud);
+				// If the x value of the pointcloud or it is marked as a point in a plane it is not needed to
+				// make further calculations, we don't want this point.
+				if(isnan(cloud->points[j].x) or mask[j] == -1) continue;
+
+				if (isInlier(cloud, j , planeLimits, coef)) {
+					Eigen::Vector4f pt(cloud->points[j].x, cloud->points[j].y, cloud->points[j].z, 1);
+					float distance = coef.dot(pt);
+
+					if (fabsf(distance) <= 0.02) {
+						// If the point is at a distance less than X, then the point is in the plane, we mark it properly.
+						mask[j] = -1;
+					} else if (mask[j] == 0 and distance < 0.0){
+						// The point is not marked as being part of an object nor plane, if it is above it we mark it as object.
+						mask[j] = 1;
+					}
+				}
+			}
 		}
+
+		pcl::PointIndices::Ptr inliers = pcl::PointIndices::Ptr(new pcl::PointIndices());
+		inliers->indices.resize(cloud->points.size());
+		int nr_p = 0;
+		for(int i = 0; i < mask.size(); i++) {
+			if(mask[i] == 1) inliers->indices[nr_p++] = i;
+		}
+		inliers->indices.resize(nr_p);
+
+		std::vector<pcl::PointIndices> clusterIndices;
+		clustering(cloud, inliers, 0.01, 300, clusterIndices);
+		colourPointCloud(remainingCloud, clusterIndices);
 
 		total_time += getTime()-init;
 		times++;
