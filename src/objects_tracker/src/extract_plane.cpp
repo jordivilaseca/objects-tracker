@@ -38,6 +38,7 @@ struct kinect {
 		std::vector<int> mask_cumulative;
 		pcl::ModelCoefficients coefficients;
 		std::vector<pcl::PointXYZRGBA> limits;
+		std::vector<visualization_msgs::Marker> markers;
 	};
 	int nplanes;
 	int iter;
@@ -280,35 +281,28 @@ void finish_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 	ROS_INFO("Calculated limits %s", k.id.c_str());
 }
 
-void publish_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
+void build_limit_markers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
 	if (k.marker_pub.getNumSubscribers() > 0) {
-		std::vector< std::vector< std::vector<double> > > positions = std::vector< std::vector< std::vector<double> > >(k.nplanes);
 		for(int i = 0; i < k.nplanes; i++) {
-			for(int j = 0; j < k.planes[i].limits.size(); j++) {
+			std::vector< std::vector<double> > positions = std::vector< std::vector<double> >(k.planes[i].limits.size() + 1, std::vector<double>(3,0));
+			int j;
+
+			// Lines between consecutive points.
+			for(j = 0; j < k.planes[i].limits.size(); j++) {
 				pcl::PointXYZRGBA p = k.planes[i].limits[j];
 
-				std::vector<double> pos = std::vector<double>(3);
-				pos[0] = p.x;
-				pos[1] = p.y;
-				pos[2] = p.z;
-				positions[i].push_back(pos);
+				positions[j][0] = p.x;
+				positions[j][1] = p.y;
+				positions[j][2] = p.z;
 			}
-		}
+			// create a line between last and first point.
+			positions[j] = positions[0];
 
-		double width = 0.03;
-		std::vector<visualization_msgs::Marker> markers;
-
-		// Add the line between first and last point.
-		for(int i = 0; i < positions.size(); i++) {
-			positions[i].push_back(positions[i][0]);
-		}
-
-		// Construct line markers.
-		buildLineMarkers(k.frame_id, positions, width, markers);
-
-		// Publish markers.
-		for(int i = 0; i < positions.size(); i++) {
-			k.marker_pub.publish(markers[i]);
+			double width = 0.03;
+			std::vector<int> color;
+			computeColor(i, k.nplanes, color);
+			int colorArr[] = {color[0], color[1], color[2], 255};
+			k.planes[i].markers.push_back(buildLineMarker(k.frame_id, i, positions, width, colorArr));
 		}
 	}
 
@@ -326,7 +320,12 @@ void calculate_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 	// Enough iterations, it's time to calculate the limits.
 	if(k.iter == MAX_LIMIT_ITER) {
 		finish_limits(cloud, k);
-		publish_limits(cloud, k);
+		build_limit_markers(cloud, k);
+		// Publish markers.
+		for(int i = 0; i < k.planes.size(); i++) {
+			k.marker_pub.publish(k.planes[i].markers[0]);
+		}
+		k.existsLimits = true;
 		k.sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(k.sub_channel, 1, boost::bind(remove_planes, _1, boost::ref(k)));
 	}
 }
@@ -349,6 +348,16 @@ void planes_coefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 	k.sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(k.sub_channel, 1, boost::bind(calculate_limits, _1, boost::ref(k)));
 }
 
+void publish_markers(const ros::TimerEvent&) {
+	for(int i = 0; i < ks.size(); i++) {
+		for (int j = 0; j < ks[i].nplanes; j++) {
+			for(int l = 0; l < ks[i].planes[j].markers.size(); l++) {
+				ks[i].marker_pub.publish(ks[i].planes[j].markers[l]);
+			}
+		}
+	}
+}
+
 int main(int argc, char **argv) {
 	ros::init(argc, argv, "extract_plane");
 	nh.reset(new ros::NodeHandle());
@@ -362,6 +371,8 @@ int main(int argc, char **argv) {
 		ks[i].plane_pub = nh->advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(ks[i].pub_plane_channel, 1);
 		ks[i].marker_pub = nh->advertise<visualization_msgs::Marker>(ks[i].pub_marker_channel, 1);
 	}
+
+	ros::Timer timer = nh->createTimer(ros::Duration(10), publish_markers);
 
 	ros::MultiThreadedSpinner spinner(2); // Use 2 threads
    	spinner.spin();
