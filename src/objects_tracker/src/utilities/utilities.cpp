@@ -16,8 +16,10 @@ void computeColor(int i, int n, std::vector<int> &color) {
 			break;
 		case 3:
 			color = {0, 255 - ((int) (255*fractpart)), 255};
+			break;
 		default:
 			color = {255, 255, 255};
+			break;
 	}
 }
 
