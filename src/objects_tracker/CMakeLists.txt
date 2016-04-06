@@ -245,6 +245,10 @@ add_executable(extract_plane src/extract_plane.cpp)
 target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros)
 add_dependencies(extract_plane opencv_nonfree249d.lib)
 
+# pose_calibration node
+add_executable(pose_calibration src/pose_calibration.cpp)
+target_link_libraries(pose_calibration ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-cpp)
+
 # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
 # target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})
