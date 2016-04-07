@@ -1,6 +1,7 @@
 //ar_track_alvar
 #include <ar_track_alvar_msgs/AlvarMarkers.h>
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <fstream>
 #include "yaml-cpp/yaml.h"
 
@@ -42,10 +43,26 @@ void pose_callback(const ar_track_alvar_msgs::AlvarMarkers::ConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "pose_calibration");
+  ros::init(argc, argv, "tf_calibration");
   ros::NodeHandle nh;
 
-  YAML::Node config = YAML::Load("{}"); // gets the root node
+  if(argc < 3){
+    std::cout << std::endl;
+    cout << "Not enough arguments provided." << endl;
+    cout << "Usage: ./pose_calibration <cam> <quality>" << endl;
+    return 0;
+  }
+
+  std::string path = ros::package::getPath("objects_tracker");
+  std::string file = path + "/cfg/tf.yaml";
+
+  YAML::Node config;
+  try {
+    config = YAML::LoadFile(file); // gets the root node
+  } catch (YAML::BadFile bf) {
+    ROS_WARN("No configuration file found, a new one will be created");
+    config = YAML::Load("");
+  }
 
   ros::Subscriber p = nh.subscribe("/ar_pose_marker", 10, pose_callback);
 
@@ -63,17 +80,18 @@ int main(int argc, char **argv)
       t.qz /= iter;
       t.qw /= iter;
 
-      config["x"] = t.x;
-      config["y"] = t.y;
-      config["z"] = t.z;
-      config["qx"] = t.qx;
-      config["qy"] = t.qy;
-      config["qz"] = t.qz;
-      config["qw"] = t.qw;
+      config[argv[1]]["x"] = t.x;
+      config[argv[1]]["y"] = t.y;
+      config[argv[1]]["z"] = t.z;
+      config[argv[1]]["qx"] = t.qx;
+      config[argv[1]]["qy"] = t.qy;
+      config[argv[1]]["qz"] = t.qz;
+      config[argv[1]]["qw"] = t.qw;
 
-      std::ofstream fout("/home/inhands-user2/catkin_ws/config.yaml");
+      std::ofstream fout(file);
       fout << config << endl;
       fout.close();
+      ROS_INFO("Configuration written at %s", file.c_str());
       ROS_INFO("Pose calibrated, please press ctr+C to end the calibration");
       ros::shutdown();
     }
