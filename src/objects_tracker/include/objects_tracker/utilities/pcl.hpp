@@ -13,6 +13,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/segmentation/seeded_hue_segmentation.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
 
 // std
 #include <queue>

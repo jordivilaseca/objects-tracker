@@ -2,6 +2,7 @@
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <objects_tracker/Objects.h>
 #include <visualization_msgs/Marker.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -208,6 +209,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			}
 		}
 
+		// Parse inliers.
 		pcl::PointIndices::Ptr inliers = pcl::PointIndices::Ptr(new pcl::PointIndices());
 		inliers->indices.resize(cloud->points.size());
 		int nr_p = 0;
@@ -216,9 +218,42 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 		}
 		inliers->indices.resize(nr_p);
 
+		// Clustering
 		std::vector<pcl::PointIndices> clusterIndices;
 		clustering(cloud, inliers, 0.01, 300, clusterIndices);
-		colourPointCloud(remainingCloud, clusterIndices);
+
+		// Build ros message.
+		objects_tracker::Objects obs;
+		obs.objects.resize(clusterIndices.size());
+		obs.header.frame_id = k.frame_id;
+
+		#pragma omp parallel for shared(cloud, clusterIndices, obs) num_threads(4)
+		for(int i = 0; i < obs.objects.size(); i++) {
+
+			// Create object point cloud.
+			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud, clusterIndices[i].indices));
+			pcl::toROSMsg(*pc, obs.objects[i].point_cloud);
+
+			// Find bounding box and mass center.
+			pcl::MomentOfInertiaEstimation <pcl::PointXYZRGBA> feature_extractor;
+			Eigen::Vector3f mass_center;
+			pcl::PointXYZRGBA min_AABB, max_AABB;
+			geometry_msgs::Point min_pt, max_pt, mass_pt;
+
+			feature_extractor.setInputCloud(pc);
+			feature_extractor.compute();
+			feature_extractor.getAABB(min_AABB, max_AABB);
+			feature_extractor.getMassCenter(mass_center);
+
+			min_pt.x = min_AABB.x; min_pt.y = min_AABB.y; min_pt.z = min_AABB.z;
+			max_pt.x = max_AABB.x; max_pt.y = max_AABB.y; max_pt.z = max_AABB.z;
+			mass_pt.x = mass_center[0]; mass_pt.y = mass_center[1]; mass_pt.z = mass_center[2];
+
+			obs.objects[i].mass_center = mass_pt;
+			obs.objects[i].bb.min_pt = min_pt;
+			obs.objects[i].bb.max_pt = max_pt;
+		}
+		//colourPointCloud(remainingCloud, clusterIndices);
 
 		total_time += getTime()-init;
 		times++;

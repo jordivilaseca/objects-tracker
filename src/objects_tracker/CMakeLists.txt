@@ -51,11 +51,12 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  BoundingBox.msg
+  Object.msg
+  Objects.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -74,6 +75,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
+  geometry_msgs
+  sensor_msgs
   std_msgs
 )
 
