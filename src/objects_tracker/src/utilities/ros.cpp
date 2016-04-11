@@ -1,6 +1,6 @@
 #include <objects_tracker/utilities/ros.hpp>
 
-visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[]) {
+visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[], double ori[]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
 	marker.header.stamp = ros::Time();
@@ -11,10 +11,10 @@ visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t ty
 	marker.pose.position.x = pos[0];
 	marker.pose.position.y = pos[1];
 	marker.pose.position.z = pos[2];
-	marker.pose.orientation.x = 0.0;
-	marker.pose.orientation.y = 0.0;
-	marker.pose.orientation.z = 0.0;
-	marker.pose.orientation.w = 1.0;
+	marker.pose.orientation.x = ori[0];
+	marker.pose.orientation.y = ori[1];
+	marker.pose.orientation.z = ori[2];
+	marker.pose.orientation.w = ori[3];
 	marker.scale.x = scale[0];
 	marker.scale.y = scale[1];
 	marker.scale.z = scale[2];
