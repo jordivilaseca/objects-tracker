@@ -256,6 +256,10 @@ target_link_libraries(tf_calibration ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml
 add_executable(tf_publisher src/tf_publisher.cpp)
 target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-cpp)
 
+# objects_to_rviz node
+add_executable(objects_to_rviz src/objects_to_rviz.cpp)
+target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} -lyaml-cpp ros)
+
 # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
 # target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})

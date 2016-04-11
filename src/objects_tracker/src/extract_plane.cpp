@@ -48,9 +48,11 @@ struct kinect {
 	std::string frame_id;
 	std::string pub_marker_channel;
 	std::string pub_plane_channel;
+	std::string pub_objects_channel;
 	std::string sub_channel;
 
 	ros::Publisher plane_pub;
+	ros::Publisher objects_pub;
 	ros::Publisher marker_pub;
 	ros::Subscriber sub;
 
@@ -71,6 +73,7 @@ struct kinect {
 		iter = 0;
 		pub_plane_channel = "/" + id + "/" + quality + "/PointCloud/plane";
 		pub_marker_channel = pub_plane_channel + "/markers";
+		pub_objects_channel = "/" + id + "/objects";
 		sub_channel = "/" + id + "/" + quality + "/PointCloud";
 
 		planes = std::vector<plane>(nplanes);
@@ -163,7 +166,7 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 }
 
 void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
-	if (k.plane_pub.getNumSubscribers() > 0) {
+	if (k.objects_pub.getNumSubscribers() > 0 or k.plane_pub.getNumSubscribers() > 0) {
 		// Cloud containing the points without the planes.
 		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
 		
@@ -240,16 +243,18 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			pcl::PointXYZRGBA min_AABB, max_AABB;
 			geometry_msgs::Point min_pt, max_pt, mass_pt;
 
-			feature_extractor.setInputCloud(pc);
+			/*feature_extractor.setInputCloud(pc);
 			feature_extractor.compute();
 			feature_extractor.getAABB(min_AABB, max_AABB);
-			feature_extractor.getMassCenter(mass_center);
+			feature_extractor.getMassCenter(mass_center);*/
+
+			pcl::getMinMax3D(*pc, min_AABB, max_AABB);
 
 			min_pt.x = min_AABB.x; min_pt.y = min_AABB.y; min_pt.z = min_AABB.z;
 			max_pt.x = max_AABB.x; max_pt.y = max_AABB.y; max_pt.z = max_AABB.z;
-			mass_pt.x = mass_center[0]; mass_pt.y = mass_center[1]; mass_pt.z = mass_center[2];
+			//mass_pt.x = mass_center[0]; mass_pt.y = mass_center[1]; mass_pt.z = mass_center[2];
 
-			obs.objects[i].mass_center = mass_pt;
+			//obs.objects[i].mass_center = mass_pt;
 			obs.objects[i].bb.min_pt = min_pt;
 			obs.objects[i].bb.max_pt = max_pt;
 		}
@@ -265,6 +270,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 
 		remainingCloud->header.frame_id = k.frame_id;
 		k.plane_pub.publish(remainingCloud);
+		k.objects_pub.publish(obs);
 	}
 }
 
@@ -317,30 +323,27 @@ void finish_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 }
 
 void build_limit_markers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
-	if (k.marker_pub.getNumSubscribers() > 0) {
-		for(int i = 0; i < k.nplanes; i++) {
-			std::vector< std::vector<double> > positions = std::vector< std::vector<double> >(k.planes[i].limits.size() + 1, std::vector<double>(3,0));
-			int j;
+	for(int i = 0; i < k.nplanes; i++) {
+		std::vector< std::vector<double> > positions = std::vector< std::vector<double> >(k.planes[i].limits.size() + 1, std::vector<double>(3,0));
+		int j;
 
-			// Lines between consecutive points.
-			for(j = 0; j < k.planes[i].limits.size(); j++) {
-				pcl::PointXYZRGBA p = k.planes[i].limits[j];
+		// Lines between consecutive points.
+		for(j = 0; j < k.planes[i].limits.size(); j++) {
+			pcl::PointXYZRGBA p = k.planes[i].limits[j];
 
-				positions[j][0] = p.x;
-				positions[j][1] = p.y;
-				positions[j][2] = p.z;
-			}
-			// create a line between last and first point.
-			positions[j] = positions[0];
-
-			double width = 0.03;
-			std::vector<int> color;
-			computeColor(i, k.nplanes, color);
-			int colorArr[] = {color[0], color[1], color[2], 255};
-			k.planes[i].markers.push_back(buildLineMarker(k.frame_id, i, positions, width, colorArr));
+			positions[j][0] = p.x;
+			positions[j][1] = p.y;
+			positions[j][2] = p.z;
 		}
-	}
+		// create a line between last and first point.
+		positions[j] = positions[0];
 
+		double width = 0.03;
+		std::vector<double> color;
+		computeColor(i, k.nplanes, color);
+		double colorArr[] = {color[0], color[1], color[2], 255};
+		k.planes[i].markers.push_back(buildLineMarker(k.frame_id, i, positions, width, colorArr));
+	}
 }
 
 void calculate_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
@@ -405,6 +408,7 @@ int main(int argc, char **argv) {
 		ks[i].sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(ks[i].sub_channel, 1, boost::bind(planes_coefficients, _1, boost::ref(ks[i])));
 		ks[i].plane_pub = nh->advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(ks[i].pub_plane_channel, 1);
 		ks[i].marker_pub = nh->advertise<visualization_msgs::Marker>(ks[i].pub_marker_channel, 1);
+		ks[i].objects_pub = nh->advertise<objects_tracker::Objects>(ks[i].pub_objects_channel, 1);
 	}
 
 	ros::Timer timer = nh->createTimer(ros::Duration(10), publish_markers);
