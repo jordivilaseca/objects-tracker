@@ -45,3 +45,10 @@ void computeColor(int i, int n, std::vector<double> &color) {
 			break;
 	}
 }
+
+void quaternion2euler(const std::vector<float> q, std::vector<float> &e) {
+	e = std::vector<float>(3,0.0);
+	e[0] = atan2(2*(q[0]*q[1] + q[2]*q[3]), 1 - 2*(q[1]*q[1] + q[2]*q[2]));
+	e[1] = asin(2*(q[0]*q[2] + q[3]*q[1]));
+	e[2] = atan2(2*(q[0]*q[3] + q[1]*q[2]), 1 - 2*(q[2]*q[2] + q[3]*q[3]));
+}

@@ -47,4 +47,6 @@ void computeColors(int n, std::vector< std::vector<T> > &colours) {
 	}
 }
 
+void quaternion2euler(const std::vector<float> q, std::vector<float> &e);
+
 #endif

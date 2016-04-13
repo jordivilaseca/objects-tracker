@@ -7,7 +7,6 @@
 #include <pcl/point_types.h>
 
 #include <objects_tracker/Objects.h>
-#include <visualization_msgs/Marker.h>
 
 #include <objects_tracker/utilities/ros.hpp>
 #include <objects_tracker/utilities/utilities.hpp>
@@ -16,7 +15,7 @@ using namespace std;
 
 YAML::Node config;
 
-void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id, ros::Publisher &pub_bb, ros::Publisher &pub_pc) {
+void make_recognition(const objects_tracker::Objects::ConstPtr &obs, std::string cam) {
   if (pub_bb.getNumSubscribers() > 0) {
     // Publish bounding box as a square marker with small alpha.
     for (int i = 0; i < obs->objects.size(); i++) {
@@ -50,7 +49,7 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "objects_to_rviz");
+  ros::init(argc, argv, "objects_recognition");
   ros::NodeHandle nh;
 
   std::string path = ros::package::getPath("objects_tracker");
@@ -65,8 +64,6 @@ int main(int argc, char **argv)
   }
 
   std::vector<ros::Subscriber> subs(config.size());
-  std::vector<ros::Publisher> pubs_bb(config.size());
-  std::vector<ros::Publisher> pubs_pc(config.size());
 
   int i = 0;
   for (auto itCam = config.begin(); itCam != config.end(); ++itCam, ++i) {
@@ -74,9 +71,7 @@ int main(int argc, char **argv)
     YAML::Node par = itCam->second;
     std::string topic = "/" + cam.as<string>() + "/objects";
 
-    pubs_bb[i] = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 50);
-    pubs_pc[i] = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(topic + "/pointcloud", 50);
-    subs[i] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[i]), boost::ref(pubs_pc[i])));
+    subs[i] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(make_recognition, _1, cam.as<string>()));
   }
 
   ros::spin();

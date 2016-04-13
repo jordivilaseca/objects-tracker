@@ -206,6 +206,7 @@ find_package(OpenCV REQUIRED)
 find_package(PCL 1.8 REQUIRED)
 #find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # OPENMP
 if(OPENMP_FOUND)
@@ -220,7 +221,7 @@ IF(CMAKE_COMPILER_IS_GNUCC)
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
 # PCL and CATKIN
-include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} )
+include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} $(EIGEN_INCLUDE_DIR))
 
 # PCL
 link_directories(${PCL_LIBRARY_DIRS})
@@ -259,6 +260,10 @@ target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-c
 # objects_to_rviz node
 add_executable(objects_to_rviz src/objects_to_rviz.cpp)
 target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} -lyaml-cpp ros)
+
+# objects_training node
+add_executable(objects_training src/objects_training.cpp)
+target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ros utilities)
 
 # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)

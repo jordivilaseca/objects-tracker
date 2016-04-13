@@ -223,7 +223,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 
 		// Clustering
 		std::vector<pcl::PointIndices> clusterIndices;
-		clustering(cloud, inliers, 0.01, 300, clusterIndices);
+		clustering(cloud, inliers, 0.03, 200, clusterIndices);
 
 		// Build ros message.
 		objects_tracker::Objects obs;

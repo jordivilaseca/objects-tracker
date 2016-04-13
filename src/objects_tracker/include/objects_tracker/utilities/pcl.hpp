@@ -15,6 +15,9 @@
 #include <pcl/segmentation/seeded_hue_segmentation.h>
 #include <pcl/features/moment_of_inertia_estimation.h>
 
+#include <pcl/features/normal_3d.h>
+#include <pcl/features/cvfh.h>
+
 // std
 #include <queue>
 #include <stack>

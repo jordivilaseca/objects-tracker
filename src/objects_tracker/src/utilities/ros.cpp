@@ -1,6 +1,6 @@
 #include <objects_tracker/utilities/ros.hpp>
 
-visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[], double ori[]) {
+visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[], double ori[], double points[][3]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
 	marker.header.stamp = ros::Time();
@@ -22,6 +22,17 @@ visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t ty
 	marker.color.g = color[1];
 	marker.color.b = color[2];
 	marker.color.a = color[3]; // Don't forget to set the alpha!
+
+	if(sizeof(points) > 0) {
+		for(int i = 0; i < sizeof(points)/sizeof(points[0]); i++) {
+			geometry_msgs::Point p;
+			p.x = points[i][0];
+			p.y = points[i][1];
+			p.z = points[i][2];
+
+			marker.points.push_back(p);
+		}
+	}
 	return marker;
 }
 

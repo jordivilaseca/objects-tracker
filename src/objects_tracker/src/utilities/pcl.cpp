@@ -430,6 +430,21 @@ void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const
 	ec.extract(clusterIndices);
 }
 
+void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh) {
+	pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
+	ne.setInputCloud(cloud);
+
+	// Create an empty kdtree representation, and pass it to the normal estimation object.
+	// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());
+	//tree->setInputCloud(cloud);
+	ne.setSearchMethod(tree);
+
+	normals = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
+	ne.setRadiusSearch(thresh);
+	ne.compute(*normals);
+}
+
 /***********************
     Plane functions
 ***********************/
@@ -474,4 +489,28 @@ void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, p
 	proj.setInputCloud(cloud);
 	proj.setModelCoefficients(modelCoef);
 	proj.filter(*projCloud);
+}
+
+/***********************
+       Descriptors
+***********************/
+
+void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::Ptr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &kdtree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
+	// CVFH estimation object.
+	pcl::CVFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> cvfh;
+	cvfh.setInputCloud(object);
+	cvfh.setInputNormals(normals);
+	cvfh.setSearchMethod(kdtree);
+	// Set the maximum allowable deviation of the normals,
+	// for the region segmentation step.
+	cvfh.setEPSAngleThreshold(angleThresh); // 5 degrees.
+	// Set the curvature threshold (maximum disparity between curvatures),
+	// for the region segmentation step.
+	cvfh.setCurvatureThreshold(curvatureThresh);
+	// Set to true to normalize the bins of the resulting histogram,
+	// using the total number of points. Note: enabling it will make CVFH
+	// invariant to scale just like VFH, but the authors encourage the opposite.
+	cvfh.setNormalizeBins(scaleInvariant);
+ 
+	cvfh.compute(*descriptors);
 }
