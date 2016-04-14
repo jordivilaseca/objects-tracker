@@ -3,7 +3,7 @@
 
 	<arg name="cam" default="cam1" />
 	<arg name="quality" default="qhd" />
-	<arg name="marker_size" default="4.4" />
+	<arg name="marker_size" default="28.7" />
 	<arg name="max_new_marker_error" default="0.08" />
 	<arg name="max_track_error" default="0.2" />
 
@@ -12,5 +12,5 @@
 	<arg name="output_frame" default="/$(arg cam)_link" />
 
 	<node pkg="ar_track_alvar" name="ar_track_alvar" type="individualMarkers" output="log" respawn="false" args="$(arg marker_size) $(arg max_new_marker_error) $(arg max_track_error) $(arg cam_image_topic) $(arg cam_info_topic) $(arg output_frame)" />
-	<node pkg="objects_tracker" name="objects_training" type="objects_training" output="screen" />
+	<node pkg="objects_tracker" name="objects_training" type="objects_training" output="screen" args="$(arg marker_size) $(arg output_frame)" />
 </launch>
