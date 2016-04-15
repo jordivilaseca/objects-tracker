@@ -413,6 +413,22 @@ void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, c
 	chull.getHullPointIndices(hullIndices); 
 }
 
+void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
+	// Creating the KdTree object for the search method of the extraction
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
+	tree->setInputCloud(cloud);
+
+	clusterIndices = std::vector<pcl::PointIndices>();
+
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
+	ec.setClusterTolerance(tolerance);	// 1cm
+	ec.setMinClusterSize(minSize);
+	ec.setMaxClusterSize(MAX_CLUSTER_POINTS);
+	ec.setSearchMethod(tree);
+	ec.setInputCloud(cloud);
+	ec.extract(clusterIndices);
+}
+
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
