@@ -263,7 +263,7 @@ target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL
 
 # objects_training node
 add_executable(objects_training src/objects_training.cpp)
-target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ros utilities)
+target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ros utilities pcl)
 
 # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
