@@ -461,6 +461,14 @@ void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, 
 	ne.compute(*normals);
 }
 
+void extractIndices(const pcl::PointIndices::ConstPtr &inliers, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
+	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+	extract.setInputCloud(cloud);
+	extract.setIndices(inliers);
+	extract.setNegative(false);
+	extract.filter(*cloud);
+}
+
 /***********************
     Plane functions
 ***********************/
@@ -511,12 +519,13 @@ void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, p
        Descriptors
 ***********************/
 
-void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::Ptr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &kdtree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
+void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointIndices::ConstPtr &inputIndices, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
 	// CVFH estimation object.
 	pcl::CVFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> cvfh;
 	cvfh.setInputCloud(object);
+	cvfh.setIndices(inputIndices);
 	cvfh.setInputNormals(normals);
-	cvfh.setSearchMethod(kdtree);
+	cvfh.setSearchMethod(tree);
 	// Set the maximum allowable deviation of the normals,
 	// for the region segmentation step.
 	cvfh.setEPSAngleThreshold(angleThresh); // 5 degrees.
@@ -529,4 +538,15 @@ void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl:
 	cvfh.setNormalizeBins(scaleInvariant);
  
 	cvfh.compute(*descriptors);
+}
+
+void computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices) {
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
+	estimateNormals(cloud, normals, 0.02);
+
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
+	tree->setInputCloud(cloud, boost::make_shared<std::vector<int>>(inputIndices->indices));
+
+	pcl::PointCloud<pcl::VFHSignature308>::Ptr cvfhDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
+	cvfh(cloud, inputIndices, normals, tree, 5.0 / 180.0 * M_PI, 1.0, false, cvfhDescriptors);
 }
