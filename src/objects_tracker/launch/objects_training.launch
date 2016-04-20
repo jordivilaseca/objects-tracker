@@ -5,7 +5,7 @@
 	<arg name="quality" default="qhd" />
 	<arg name="marker_size" default="28.7" />
 	<arg name="max_new_marker_error" default="0.0001" />
-	<arg name="max_track_error" default="0.001" />
+	<arg name="max_track_error" default="0.0001" />
 
 	<arg name="cam_image_topic" default="/$(arg cam)/$(arg quality)/points" />
 	<arg name="cam_info_topic" default="/$(arg cam)/$(arg quality)/camera_info" />		

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cmath>
+#include <fstream>
 
 void computeColor(int i, int n, std::vector<int> &color);
 void computeColor(int i, int n, std::vector<double> &color);
@@ -45,6 +46,34 @@ void computeColors(int n, std::vector< std::vector<T> > &colours) {
 	for(int i = 0; i < n; i++) {
 		computeColor(i, n, colours[i]);
 	}
+}
+
+template <typename T>
+void writeList(const std::vector<T> &list, std::string path) {
+	std::ofstream fs;
+    fs.open (path);
+    for (size_t i = 0; i < list.size (); ++i)
+      fs << list[i] << "\n";
+    fs.close();
+}
+
+template <typename T>
+bool readList(std::vector<T> &list, std::string path) {
+	std::ifstream fs;
+	fs.open (path);
+	if (!fs.is_open() || fs.fail())
+	return false;
+
+	std::string line;
+	while (!fs.eof ())
+	{
+		getline (fs, line);
+		if (line.empty())
+		  continue;
+		list.push_back(line);
+	}
+	fs.close ();
+	return true;
 }
 
 void quaternion2euler(const std::vector<float> q, std::vector<float> &e);

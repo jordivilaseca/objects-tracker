@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+
 project(objects_tracker)
 
 set(CMAKE_CXX_FLAGS "-std=c++0x ${CMAKE_CXX_FLAGS}")
@@ -207,6 +210,8 @@ find_package(PCL 1.8 REQUIRED)
 #find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(HDF5)
+find_package(FLANN 1.8)
 
 # OPENMP
 if(OPENMP_FOUND)
@@ -220,12 +225,18 @@ IF(CMAKE_COMPILER_IS_GNUCC)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O2")
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
-# PCL and CATKIN
-include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} $(EIGEN_INCLUDE_DIR))
-
 # PCL
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+
+# FLANN
+link_directories(${FLANN_LIBRARY_DIRS})
+if(FLANN_CFLAGS)
+ add_definitions(${FLANN_CFLAGS})
+endif(FLANN_CFLAGS) 
+
+# PCL, HDF5 and CATKIN
+include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} ${EIGEN_INCLUDE_DIR} ${HDF5_INCLUDE_DIR} ${FLANN_INCLUDE_DIRS})
 
 # point_cloud node
 add_executable(point_cloud src/point_cloud.cpp)
@@ -263,7 +274,7 @@ target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL
 
 # objects_training node
 add_executable(objects_training src/objects_training.cpp)
-target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ros utilities pcl)
+target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${FLANN_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl)
 
 # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
