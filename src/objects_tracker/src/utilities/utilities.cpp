@@ -52,3 +52,21 @@ void quaternion2euler(const std::vector<float> q, std::vector<float> &e) {
 	e[1] = asin(2*(q[0]*q[2] + q[3]*q[1]));
 	e[2] = atan2(2*(q[0]*q[3] + q[1]*q[2]), 1 - 2*(q[2]*q[2] + q[3]*q[3]));
 }
+
+void writeConfusionMatrix(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &header,const std::string &path) {
+	std::ofstream fs;
+	fs.open(path);
+
+	// Print confusion matrix
+	for(int i = 0; i < confMat.size(); i++) {
+		fs << ", " << header[i];
+	}
+	fs << "\n";
+	for(int i = 0; i < confMat.size(); i++) {
+		fs << header[i];
+		for(int j = 0; j < confMat.size(); j++) {
+		  fs << ", " << confMat[i][j];
+		}
+		fs << "\n";
+	}
+}

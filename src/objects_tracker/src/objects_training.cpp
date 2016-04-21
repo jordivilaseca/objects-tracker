@@ -121,24 +121,25 @@ void async_read(bool &newOption, std::string &option) {
   }
 }
 
-void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const std::vector<std::string> &objectsNames) {
-  // Extract different elements.
-  std::vector<std::string> elements(objectsNames.size());
-  elements[0] = objectsNames[0];
+void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const std::vector<std::string> &objectsNames, std::vector<std::vector<int>> &confMat, std::vector<std::string> &header) {
+
+  // Extract header.
+  header = std::vector<std::string>(objectsNames.size());
+  header[0] = objectsNames[0];
   int nelem = 1;
   for(int i = 1; i < objectsNames.size(); i++) {
-    if(objectsNames[i-1] != objectsNames[i]) elements[nelem++] = objectsNames[i];
+    if(objectsNames[i-1] != objectsNames[i]) header[nelem++] = objectsNames[i];
   }
-  elements.resize(nelem);
+  header.resize(nelem);
   
   cout << "How many pictures do you want to take for each object? ";
   std::string option;
   getline(cin, option);
   uint npic = atoi(option.c_str());
 
-  std::vector<std::vector<int>> confusionMat(nelem, std::vector<int>(nelem, 0));
+  confMat = std::vector<std::vector<int>>(nelem, std::vector<int>(nelem, 0));
   for(int i = 0; i < nelem; i++) {
-    cout << "Start taking pictures of " << elements[i] << endl;
+    cout << "Start taking pictures of " << header[i] << endl;
     for(int j = 0; j < npic; j++) {
 
       // Wait the user.
@@ -166,32 +167,19 @@ void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &k
       std::vector<float> nn_sqr_distance(1);
       kdtree->nearestKSearch(target->points[0], 1, nn_index, nn_sqr_distance);
       int best_match = nn_index[0];
-      cout << "Best match id: " << best_match << ", it corresponds to " << objectsNames[best_match] << endl;
+      cout << "Best match id: " << best_match << ", it corresponds to " << objectsNames[best_match] << ", distance " << nn_sqr_distance[0] << endl;
 
       // Update confusion matrix.
-      if(objectsNames[best_match] == elements[i]) {
-        confusionMat[i][i] += 1;
+      if(objectsNames[best_match] == header[i]) {
+        confMat[i][i] += 1;
       } else {
-        auto it = std::find(elements.begin(), elements.end(), objectsNames[best_match]);
-        int id = std::distance(elements.begin(), it);
-        confusionMat[i][id] += 1;
+        auto it = std::find(header.begin(), header.end(), objectsNames[best_match]);
+        int id = std::distance(header.begin(), it);
+        confMat[i][id] += 1;
       }
 
     }
     cout << "Object ended!" << endl;
-  }
-
-  // Print confusion matrix
-  for(int i = 0; i < nelem; i++) {
-    cout << ", " << elements[i];
-  }
-  cout << endl;
-  for(int i = 0; i < nelem; i++) {
-    cout << elements[i];
-    for(int j = 0; j < nelem; j++) {
-      cout << ", " << confusionMat[i][j];
-    }
-    cout << endl;
   }
 }
 
@@ -226,7 +214,7 @@ void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, cons
     std::vector<float> nn_sqr_distance(1);
     kdtree->nearestKSearch(target->points[0], 1, nn_index, nn_sqr_distance);
     int best_match = nn_index[0];
-    cout << "Best match id: " << best_match << ", it corresponds to " << objectsNames[best_match] << endl;
+    cout << "Best match id: " << best_match << ", it corresponds to " << objectsNames[best_match] << ", distance " << nn_sqr_distance[0] << endl;
   }
 }
 
@@ -239,7 +227,7 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         cout << "Object name: ";
 
         std::string objectName;
-        cin >> objectName;
+        getline(cin, objectName);
 
         // Create folder containing the objects pcd.
         std::string object_path = objects_path + "/" + objectName;
@@ -311,7 +299,7 @@ void parse_option(std::string option, std::string objects_path, std::string fram
             boost::filesystem::path rep(obIt->path());
 
             if(rep.extension().string() != ".pcd") {
-              cout << "Not accepted extension for file " << rep.filename() << endl;
+              cout << "WARN: Not accepted extension for file " << rep.filename() << endl;
               continue; 
             }
 
@@ -327,6 +315,8 @@ void parse_option(std::string option, std::string objects_path, std::string fram
             objectsDescriptors->points.insert(objectsDescriptors->points.end(), descriptor->points.begin(), descriptor->points.end());
             objectsNames.insert(objectsNames.end(), descriptor->points.size(), obsIt->path().stem().string());
           }
+
+          cout << "Created descriptors for " <<  obsIt->path().filename() << endl;
         }
 
         assert(objectsNames.size() == objectsDescriptors->points.size());
@@ -340,18 +330,6 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         writeList(objectsNames, path + "objects_names");
 
         cout << "Descriptors computed and stored!" << endl;
-
-        //cout << "Prediction: " << best_match << " " << objectsNames[best_match] << endl;
-
-        /*std::vector<pcl::PCLPointField> fields;
-        pcl::getFieldIndex(*objectsDescriptors, "vfh", fields);
-        cout << fields.size() << fields[0] << endl;
-*/
-        //flann::save_to_file(kdtree, path + "objects/flann.db", "training_data");
-
-        /*for(int i = 0; i < objectsDescriptors->points.size(); i++) cout << objectsDescriptors->points[i] << endl;
-        for(int i = 0; i < objectsNames.size(); i++) cout << objectsNames[i] << endl;
-        cout << (objectsNames.size() == objectsDescriptors->points.size()) << endl;*/
         break;
       }
     case '4':
@@ -376,7 +354,7 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         }
         cout << "Finished loading descriptors.pcd" << endl;
 
-        // Check if there are the same number of elements into the loaded structures.
+        // Check if there are the same number of elements into the loaded structures
         if(objectsNames.size() != objectsDescriptors->points.size()) {
           cout << "ERROR: objects_names and descriptors.pcd have different number of elements" << endl;
           return;
@@ -395,7 +373,16 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         if(option[0] == '4') {
           tryTraining(kdtree, objectsNames);
         } else {
-          computeConfusionMatrix(kdtree, objectsNames);
+
+          // Compute confusion matrix.
+          std::vector<std::vector<int>> confMat;
+          std::vector<std::string> header;
+          computeConfusionMatrix(kdtree, objectsNames, confMat, header);
+
+          cout << "Confusion matrix computed! Enter a file name: ";
+          std::string name;
+          getline(cin, name);
+          writeConfusionMatrix(confMat, header, path + "/" + name + ".csv");
         }
         break;
       }
