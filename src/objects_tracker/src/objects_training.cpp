@@ -20,6 +20,7 @@
 #include <mutex>
 #include <thread>
 #include <iostream>
+#include <cstring>
 
 
 #include <boost/filesystem.hpp>
@@ -110,7 +111,7 @@ void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 }
 
 void print_help() {
-  cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Training of a new object.\n\t[2] Delete an object.\n\t[3] Update training database.\n\t[4] Try training \n\t[5] Compute confusion matrix\n\nEnter an option: ";
+  cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Update training set.\n\t[2] Update testing set.\n\t[3] Compute descriptors database.\n\t[4] Try training \n\t[5] Compute confusion matrix\n\nEnter an option: ";
 }
 
 void async_read(bool &newOption, std::string &option) {
@@ -121,69 +122,179 @@ void async_read(bool &newOption, std::string &option) {
   }
 }
 
-void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const std::vector<std::string> &objectsNames, std::vector<std::vector<int>> &confMat, std::vector<std::string> &header) {
+std::string findBestMatch(const pcl::PointCloud<pcl::VFHSignature308>::Ptr target, const std::vector<std::string> &descriptorNames, const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree) {
 
-  // Extract header.
-  header = std::vector<std::string>(objectsNames.size());
-  header[0] = objectsNames[0];
-  int nelem = 1;
-  for(int i = 1; i < objectsNames.size(); i++) {
-    if(objectsNames[i-1] != objectsNames[i]) header[nelem++] = objectsNames[i];
+  std::map<std::string, int> objectMatches;
+  for(int i = 0; i < target->points.size(); i++) {
+    std::vector<int> nn_index(1);
+    std::vector<float> nn_sqr_distance(1);
+    kdtree->nearestKSearch(target->points[i], 1, nn_index, nn_sqr_distance);
+    std::string name = descriptorNames[nn_index[0]];
+
+    // Update matches
+    if (objectMatches.find(name) == objectMatches.end()) objectMatches[name] = 1;
+    else objectMatches[name] += 1;
   }
-  header.resize(nelem);
+
+  // Search the object with most matches.
+  std::string maxId = "";
+  int maxValue = 0;
+  int totalMatches = 0;
+  for(auto& iter : objectMatches) {
+    if(iter.second > maxValue) {
+      maxId = iter.first;
+      maxValue = iter.second;
+    }
+    totalMatches += iter.second;
+  }
+  assert(maxId != ""); 
+  cout << "The object is '" << maxId << "', voting results : " << maxValue << "/" << totalMatches << endl;
+  return maxId;
+}
+
+void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const pcl::PointCloud<pcl::VFHSignature308>::Ptr &testingDescriptors, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &trainingNames, const std::vector<std::string> &testingCount, std::vector<std::vector<int>> &confMat) {
   
-  cout << "How many pictures do you want to take for each object? ";
-  std::string option;
-  getline(cin, option);
-  uint npic = atoi(option.c_str());
+  int nelem = trainingHeader.size();
 
   confMat = std::vector<std::vector<int>>(nelem, std::vector<int>(nelem, 0));
-  for(int i = 0; i < nelem; i++) {
-    cout << "Start taking pictures of " << header[i] << endl;
-    for(int j = 0; j < npic; j++) {
 
-      // Wait the user.
-      getline(cin,option);
+  int k = 0;
+  for(int k1 = 0; k1 < testingCount.size(); k1+=2) {
+    // It contains [object, numPhotos]
 
-      // Safe copy of the current point cloud.
-      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr objectCopy(new pcl::PointCloud<pcl::PointXYZRGBA>());
-      m.lock();
-      pcl::copyPointCloud(*object, *objectCopy);
-      newObject = false;
-      m.unlock();
+    std::string goodName = testingCount[k1];
+    int c = stoi(testingCount[k1+1]);
 
-      // Do nothing if the object is empty.
-      if (objectCopy->points.size() == 0) {
-        cout << "There is no object on the tag or it is to small." << endl;
-        continue;
-      }
+    // Create target with its descriptors.
+    pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
+    target->points.insert(target->points.end(), &testingDescriptors->points[k],&testingDescriptors->points[k + c]);
+    // Find best match.
+    std::string name = findBestMatch(target, trainingNames, kdtree);
 
-      // Compute descriptors
-      pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
-      computeDescriptors(objectCopy, target);
+    // Find position in confusion matrix.
+    auto iti = std::find(trainingHeader.begin(), trainingHeader.end(), goodName);
+    int i = std::distance(trainingHeader.begin(), iti);
 
-      // Find best match
-      std::vector<int> nn_index(1);
-      std::vector<float> nn_sqr_distance(1);
-      kdtree->nearestKSearch(target->points[0], 1, nn_index, nn_sqr_distance);
-      int best_match = nn_index[0];
-      cout << "Best match id: " << best_match << ", it corresponds to " << objectsNames[best_match] << ", distance " << nn_sqr_distance[0] << endl;
-
-      // Update confusion matrix.
-      if(objectsNames[best_match] == header[i]) {
-        confMat[i][i] += 1;
-      } else {
-        auto it = std::find(header.begin(), header.end(), objectsNames[best_match]);
-        int id = std::distance(header.begin(), it);
-        confMat[i][id] += 1;
-      }
-
+    // Update confusion matrix.
+    if(name == goodName) {
+      confMat[i][i] += 1;
+    } else {
+      auto itj = std::find(trainingHeader.begin(), trainingHeader.end(), name);
+      int j = std::distance(trainingHeader.begin(), itj);
+      confMat[i][j] += 1;
     }
-    cout << "Object ended!" << endl;
+
+    k += c;
   }
 }
 
-void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const std::vector<std::string> &objectsNames) {
+void computeFiles(const std::string &path) {
+  
+  std::vector<std::string> objectsNames;
+  pcl::PointCloud<pcl::VFHSignature308>::Ptr objectsDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
+  std::vector<std::string> objectsCount;
+  boost::filesystem::path dir(path);
+
+  // Iterate over every object to calculate the descriptors.
+  for(boost::filesystem::directory_iterator obsIt(dir); obsIt != boost::filesystem::directory_iterator(); ++obsIt) {
+
+    // Check if it is a directory.
+    if(!boost::filesystem::is_directory(obsIt->status())) continue;
+
+    // Iterate over every representation of the object.
+    for(boost::filesystem::directory_iterator obIt(obsIt->path()); obIt != boost::filesystem::directory_iterator(); ++obIt) {
+      boost::filesystem::path rep(obIt->path());
+
+      if(rep.extension().string() != ".pcd") {
+        cout << "WARN: Not accepted extension for file " << rep.filename() << endl;
+        continue; 
+      }
+
+      // Load pointcloud
+      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGBA>());
+      pcl::io::loadPCDFile<pcl::PointXYZRGBA>(rep.string(), *cloud);
+
+      // Compute descriptors.
+      pcl::PointCloud<pcl::VFHSignature308>::Ptr descriptor(new pcl::PointCloud<pcl::VFHSignature308>());
+      computeDescriptors(cloud, descriptor);
+
+      // Update descriptors and names.
+      objectsDescriptors->points.insert(objectsDescriptors->points.end(), descriptor->points.begin(), descriptor->points.end());
+      objectsNames.insert(objectsNames.end(), descriptor->points.size(), obsIt->path().stem().string());
+      objectsCount.push_back(obsIt->path().stem().string() + " " + to_string(descriptor->points.size()));
+    }
+
+    cout << "Created descriptors for " <<  obsIt->path().filename() << endl;
+  }
+
+  assert(objectsNames.size() == objectsDescriptors->points.size());
+
+  // Save descriptors.
+  objectsDescriptors->height = 1;
+  objectsDescriptors->width = objectsDescriptors->points.size();
+  pcl::io::savePCDFileASCII (path + "/descriptors.pcd", *objectsDescriptors);
+
+  // Save list of objects.
+  writeList(objectsNames, path + "/objects_names");
+
+  // Save list of photos for object.
+  writeList(objectsCount, path + "/objects_count");
+
+  cout << "Descriptors computed and stored!" << endl;
+}
+
+void computeObjects(const std::string &objects_path) {
+  cout << "Object name: ";
+
+  std::string objectName;
+  getline(cin, objectName);
+
+  // Create folder containing the objects pcd.
+  std::string object_path = objects_path + "/" + objectName;
+  boost::filesystem::path dir(object_path);
+  if(!boost::filesystem::create_directories(dir)) {
+    cout << "An object with this name exists, the new images will be added" << endl;
+  }
+
+  // Find maximum object id.
+  int max_id = 0;
+  for(boost::filesystem::directory_iterator itr(dir); itr != boost::filesystem::directory_iterator(); ++itr) {
+    std::string filename = itr->path().stem().string();
+
+    try{
+      int id = atoi(filename.c_str());
+      max_id = max(max_id, id);
+    } catch (std::exception const & ex) {
+      cout << "WARN: " << filename << " is not a valid name, it must be a number. It has been ignored." << endl;
+    }            
+  }
+
+  cout << "Press enter every moment you want to take a picture, enter 'exit' to stop." << endl; 
+
+  while(true) {
+    std::string option;
+    getline(cin, option);
+    // Stop storing point clouds.
+    if(option == "exit") break;
+
+    // Safe copy of the current point cloud.
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr objectCopy(new pcl::PointCloud<pcl::PointXYZRGBA>());
+    m.lock();
+    pcl::copyPointCloud(*object, *objectCopy); 
+    newObject = false;
+    m.unlock();
+
+    if (objectCopy->points.size() == 0) {
+      cout << "There is no object on the tag or it is to small." << endl;
+      continue;
+    }
+    ++max_id;
+    pcl::io::savePCDFileASCII (object_path + "/" + to_string(max_id) + ".pcd", *objectCopy);
+    cout << "Added " << object_path + "/" + to_string(max_id) + ".pcd" << endl;
+  }
+}
+
+void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const std::vector<std::string> &header) {
   cout << "Press enter every moment you want to take a picture, enter 'exit' to stop." << endl; 
 
   while(true) {
@@ -208,14 +319,26 @@ void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, cons
 
     // Compute descriptors.
     pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
-    computeDescriptors(objectCopy, target);
+    computeDescriptors(object, target);
 
-    std::vector<int> nn_index(1);
-    std::vector<float> nn_sqr_distance(1);
-    kdtree->nearestKSearch(target->points[0], 1, nn_index, nn_sqr_distance);
-    int best_match = nn_index[0];
-    cout << "Best match id: " << best_match << ", it corresponds to " << objectsNames[best_match] << ", distance " << nn_sqr_distance[0] << endl;
+    findBestMatch(target, header, kdtree);
   }
+}
+
+template <typename T>
+std::vector<T> computeHeader(const std::vector<T> &list) {
+  std::vector<T> header(list.size());
+
+  if(list.size() == 0) return header;
+
+  header[0] = list[0];
+  int nelem = 1;
+  for(int i = 1; i < list.size(); i++) {
+    if(list[i-1] != list[i]) header[nelem++] = list[i];
+  }
+  header.resize(nelem);
+
+  return header;
 }
 
 void parse_option(std::string option, std::string objects_path, std::string frame) {
@@ -223,166 +346,89 @@ void parse_option(std::string option, std::string objects_path, std::string fram
 
   switch(option[0]) {
     case '1':
-      {
-        cout << "Object name: ";
+      computeObjects(objects_path + "/training");
+      break;
 
-        std::string objectName;
-        getline(cin, objectName);
-
-        // Create folder containing the objects pcd.
-        std::string object_path = objects_path + "/" + objectName;
-        boost::filesystem::path dir(object_path);
-        if(!boost::filesystem::create_directories(dir)) {
-          cout << "An object with this name exists, the new images will be added" << endl;
-        }
-
-        // Find maximum object id.
-        int max_id = 0;
-        boost::filesystem::directory_iterator end_itr;
-        for(boost::filesystem::directory_iterator itr(dir); itr != boost::filesystem::directory_iterator(); ++itr) {
-          std::string filename = itr->path().stem().string();
-
-          try{
-            int id = atoi(filename.c_str());
-            max_id = max(max_id, id);
-          } catch (std::exception const & ex) {
-            cout << "WARN: " << filename << " is not a valid name, it must be a number. It has been ignored." << endl;
-          }            
-        }
-
-        cout << "Press enter every moment you want to take a picture, enter 'exit' to stop." << endl; 
-
-        while(true) {
-          std::string option;
-          getline(cin, option);
-          // Stop storing point clouds.
-          if(option == "exit") break;
-
-          // Safe copy of the current point cloud.
-          pcl::PointCloud<pcl::PointXYZRGBA>::Ptr objectCopy(new pcl::PointCloud<pcl::PointXYZRGBA>());
-          m.lock();
-          pcl::copyPointCloud(*object, *objectCopy);
-          objectCopy->header.frame_id = frame;
-          newObject = false;
-          m.unlock();
-
-          if (objectCopy->points.size() == 0) {
-            cout << "There is no object on the tag or it is to small." << endl;
-            continue;
-          }
-          ++max_id;
-          pcl::io::savePCDFileASCII (object_path + "/" + to_string(max_id) + ".pcd", *objectCopy);
-          cout << "Added " << object_path + "/" + to_string(max_id) + ".pcd" << endl;
-        }
-        break;
-      }
     case '2':
-      cout << "Not implemented yet" << endl;
+      computeObjects(objects_path + "/testing");
       break;
 
     case '3':
-      {
-        pcl::PointCloud<pcl::VFHSignature308>::Ptr objectsDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
-        std::vector<std::string> objectsNames;
+      cout << "Compute training descriptors" << endl;
+      computeFiles(objects_path + "/training");
 
-        std::string path = objects_path + "/";
-        boost::filesystem::path dir(path);
+      cout << "Compute testing descriptors" << endl;
+      computeFiles(objects_path + "/testing");
+      break;
 
-        // Iterate over every object to calculate the descriptors.
-        for(boost::filesystem::directory_iterator obsIt(dir); obsIt != boost::filesystem::directory_iterator(); ++obsIt) {
-
-          // Check if it is a directory.
-          if(!boost::filesystem::is_directory(obsIt->status())) continue;
-
-          // Iterate over every representation of the object.
-          for(boost::filesystem::directory_iterator obIt(obsIt->path()); obIt != boost::filesystem::directory_iterator(); ++obIt) {
-            boost::filesystem::path rep(obIt->path());
-
-            if(rep.extension().string() != ".pcd") {
-              cout << "WARN: Not accepted extension for file " << rep.filename() << endl;
-              continue; 
-            }
-
-            // Load pointcloud
-            pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGBA>());
-            pcl::io::loadPCDFile<pcl::PointXYZRGBA>(rep.string(), *cloud);
-
-            // Compute descriptors.
-            pcl::PointCloud<pcl::VFHSignature308>::Ptr descriptor(new pcl::PointCloud<pcl::VFHSignature308>());
-            computeDescriptors(cloud, descriptor);
-
-            // Update descriptors and its name.
-            objectsDescriptors->points.insert(objectsDescriptors->points.end(), descriptor->points.begin(), descriptor->points.end());
-            objectsNames.insert(objectsNames.end(), descriptor->points.size(), obsIt->path().stem().string());
-          }
-
-          cout << "Created descriptors for " <<  obsIt->path().filename() << endl;
-        }
-
-        assert(objectsNames.size() == objectsDescriptors->points.size());
-
-        // Save descriptors.
-        objectsDescriptors->height = 1;
-        objectsDescriptors->width = objectsDescriptors->points.size();
-        pcl::io::savePCDFileASCII (path + "descriptors.pcd", *objectsDescriptors);
-
-        // Save list of objects.
-        writeList(objectsNames, path + "objects_names");
-
-        cout << "Descriptors computed and stored!" << endl;
-        break;
-      }
     case '4':
     case '5':
       {
-        std::string path = objects_path + "/";
-        boost::filesystem::path dir(path);
+        std::string training_path = objects_path + "/training";
+        boost::filesystem::path dir(training_path);
 
         // Read objects names.
-        std::vector<std::string> objectsNames;
-        if (!readList(objectsNames, path + "objects_names")) {
+        std::vector<std::string> trainingNames;
+        if (!readList(trainingNames, training_path + "/objects_names")) {
           cout << "ERROR loading objects_names" << endl;
           return;
         }
         cout << "Finished loading objects_names" << endl;
 
         // Read descriptors.
-        pcl::PointCloud<pcl::VFHSignature308>::Ptr objectsDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
-        if (pcl::io::loadPCDFile(path + "descriptors.pcd" , *objectsDescriptors) == -1) {
+        pcl::PointCloud<pcl::VFHSignature308>::Ptr trainingDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
+        if (pcl::io::loadPCDFile(training_path + "/descriptors.pcd" , *trainingDescriptors) == -1) {
           cout << "ERROR loading descriptors.pcd" << endl;
           return;
         }
         cout << "Finished loading descriptors.pcd" << endl;
 
         // Check if there are the same number of elements into the loaded structures
-        if(objectsNames.size() != objectsDescriptors->points.size()) {
+        if(trainingNames.size() != trainingDescriptors->points.size()) {
           cout << "ERROR: objects_names and descriptors.pcd have different number of elements" << endl;
           return;
         }
 
         // Check there is at least one element into the loaded structures.
-        if(objectsNames.size() == 0 or objectsDescriptors->points.size() == 0) {
+        if(trainingNames.size() == 0 or trainingDescriptors->points.size() == 0) {
           cout << "ERROR: objects_names or descriptors.pcd are empty" << endl;
           return;
         }
 
         // Learn descriptors.
         pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr kdtree(new pcl::KdTreeFLANN<pcl::VFHSignature308>());
-        kdtree->setInputCloud(objectsDescriptors);
+        kdtree->setInputCloud(trainingDescriptors);
 
         if(option[0] == '4') {
-          tryTraining(kdtree, objectsNames);
+          tryTraining(kdtree, trainingNames);
         } else {
+          std::string testing_path = objects_path + "/testing";
+
+          // Read objects names.
+          std::vector<std::string> testingCount;
+          if (!readList(testingCount, testing_path + "/objects_count")) {
+            cout << "ERROR loading objects_count" << endl;
+            return;
+          }
+          cout << "Finished loading objects_count" << endl;
+
+          std::vector<std::string> header = computeHeader(trainingNames);
 
           // Compute confusion matrix.
           std::vector<std::vector<int>> confMat;
-          std::vector<std::string> header;
-          computeConfusionMatrix(kdtree, objectsNames, confMat, header);
+
+          pcl::PointCloud<pcl::VFHSignature308>::Ptr testingDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
+          if (pcl::io::loadPCDFile(testing_path + "/descriptors.pcd" , *testingDescriptors) == -1) {
+            cout << "ERROR loading descriptors.pcd" << endl;
+            return;
+          }
+
+          computeConfusionMatrix(kdtree, testingDescriptors, header, trainingNames, testingCount, confMat);
 
           cout << "Confusion matrix computed! Enter a file name: ";
           std::string name;
           getline(cin, name);
-          writeConfusionMatrix(confMat, header, path + "/" + name + ".csv");
+          writeConfusionMatrix(confMat, header, objects_path + "/" + name + ".csv");
         }
         break;
       }
@@ -489,7 +535,6 @@ int main(int argc, char **argv)
   std::string option;
   
   std::string path = ros::package::getPath("objects_tracker");
-  std::string objects_path = path + "/objects";
 
   ros::AsyncSpinner spinner(1); // Use 4 threads
   spinner.start();
@@ -500,7 +545,7 @@ int main(int argc, char **argv)
 
     if (option == "-1") break;
 
-    parse_option(option, objects_path, frame);
+    parse_option(option, path, frame);
     cout << "Enter an option: ";
   }
   spinner.stop();

@@ -4,6 +4,7 @@
 #include <vector>
 #include <cmath>
 #include <fstream>
+#include <iostream>
 
 void computeColor(int i, int n, std::vector<int> &color);
 void computeColor(int i, int n, std::vector<double> &color);
@@ -60,20 +61,23 @@ void writeList(const std::vector<T> &list, std::string path) {
 template <typename T>
 bool readList(std::vector<T> &list, std::string path) {
 	std::ifstream fs;
-	fs.open (path);
+	fs.open(path);
 	if (!fs.is_open() || fs.fail())
 	return false;
 
-	std::string line;
-	while (!fs.eof ())
+	T value;
+	while (fs >> value)
 	{
-		getline (fs, line);
-		if (line.empty())
-		  continue;
-		list.push_back(line);
+		list.push_back(value);
 	}
-	fs.close ();
+	fs.close();
 	return true;
+}
+
+template <typename T>
+void printList(const std::vector<T> &list) {
+	for(T elem : list) std::cout << elem << " ";
+	std::cout << std::endl;
 }
 
 void writeConfusionMatrix(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &objects,const std::string &path);

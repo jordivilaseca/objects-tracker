@@ -546,5 +546,5 @@ void computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clou
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
 	tree->setInputCloud(cloud);
 
-	cvfh(cloud, normals, tree, 5.0 / 180.0 * M_PI, 1.0, false, descriptors);
+	cvfh(cloud, normals, tree, 5.0 / 180.0 * M_PI, 1.0, true, descriptors);
 }
