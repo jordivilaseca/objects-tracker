@@ -1,0 +1,7 @@
+, colacao, cafe, pascual, gourmet_tea, asturiana, spar_tea
+colacao, 1, 0, 0, 0, 0, 0
+cafe, 0, 1, 0, 0, 0, 0
+pascual, 0, 0, 1, 0, 0, 0
+gourmet_tea, 0, 0, 0, 1, 0, 0
+asturiana, 0, 0, 0, 0, 0, 1
+spar_tea, 0, 0, 0, 1, 0, 0

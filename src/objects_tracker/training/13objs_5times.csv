@@ -1,0 +1,14 @@
+, liquid_yogurt, colacao, ato, cafe, sugar, juice, nescafe, acor_sugar, pascual, gourmet_tea, asturiana, spar_tea, nesquik
+liquid_yogurt, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+colacao, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+ato, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+cafe, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0
+sugar, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0
+juice, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 1, 0, 0
+nescafe, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0
+acor_sugar, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0
+pascual, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0
+gourmet_tea, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0
+asturiana, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 2, 0, 0
+spar_tea, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0
+nesquik, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5

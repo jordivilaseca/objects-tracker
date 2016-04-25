@@ -1,0 +1,8 @@
+, colacao, ato, cafe, pascual, gourmet_tea, asturiana, spar_tea
+colacao, 10, 0, 0, 0, 0, 0, 0
+ato, 0, 8, 1, 1, 0, 0, 0
+cafe, 0, 0, 10, 0, 0, 0, 0
+pascual, 0, 0, 0, 10, 0, 0, 0
+gourmet_tea, 0, 0, 3, 0, 6, 0, 1
+asturiana, 0, 0, 0, 0, 0, 10, 0
+spar_tea, 0, 0, 0, 0, 1, 0, 9

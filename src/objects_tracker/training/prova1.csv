@@ -1,0 +1,5 @@
+, colacao, cafe, asturiana, spar_tea
+colacao, 5, 0, 0, 0
+cafe, 0, 5, 0, 0
+asturiana, 0, 0, 5, 0
+spar_tea, 0, 0, 0, 5
