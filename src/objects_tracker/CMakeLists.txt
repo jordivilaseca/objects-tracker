@@ -255,6 +255,11 @@ target_link_libraries(pcl ${catkin_LIBRARIES} ${PCL_LIBRARIES} utilities)
 add_library(ros src/utilities/ros.cpp)
 target_link_libraries(ros ${catkin_LIBRARIES} utilities)
 
+# utilities bridge
+add_library(bridge src/utilities/bridge.cpp)
+target_link_libraries(bridge ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
+add_dependencies(bridge opencv_nonfree249d.lib)
+
 # extract_plane node
 add_executable(extract_plane src/extract_plane.cpp)
 target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros)

@@ -126,14 +126,25 @@ std::string findBestMatch(const pcl::PointCloud<pcl::VFHSignature308>::Ptr targe
 
   std::map<std::string, int> objectMatches;
   for(int i = 0; i < target->points.size(); i++) {
-    std::vector<int> nn_index(1);
-    std::vector<float> nn_sqr_distance(1);
-    kdtree->nearestKSearch(target->points[i], 1, nn_index, nn_sqr_distance);
-    std::string name = descriptorNames[nn_index[0]];
+    std::vector<int> nn_index(3);
+    std::vector<float> nn_sqr_distance(3);
+    kdtree->nearestKSearch(target->points[i], 3, nn_index, nn_sqr_distance);
+
+    std::string nameFirst = descriptorNames[nn_index[0]];
+    std::string nameSecond = descriptorNames[nn_index[1]];
+    std::string nameThird = descriptorNames[nn_index[2]];
 
     // Update matches
-    if (objectMatches.find(name) == objectMatches.end()) objectMatches[name] = 1;
-    else objectMatches[name] += 1;
+    if (objectMatches.find(nameFirst) == objectMatches.end()) objectMatches[nameFirst] = 5;
+    else objectMatches[nameFirst] += 5;
+
+    // Update matches
+    if (objectMatches.find(nameSecond) == objectMatches.end()) objectMatches[nameSecond] = 3;
+    else objectMatches[nameSecond] += 3;
+
+    // Update matches
+    if (objectMatches.find(nameThird) == objectMatches.end()) objectMatches[nameThird] = 1;
+    else objectMatches[nameThird] += 1;
   }
 
   // Search the object with most matches.

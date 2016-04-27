@@ -232,10 +232,15 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 
 		#pragma omp parallel for shared(cloud, clusterIndices, obs) num_threads(10)
 		for(int i = 0; i < obs.objects.size(); i++) {
+			objects_tracker::Object ob;
 
 			// Create object point cloud.
-			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud, clusterIndices[i].indices));
-			pcl::toROSMsg(*pc, obs.objects[i].point_cloud);
+			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGBA>());
+			pcl::PointIndices::ConstPtr inds = boost::make_shared<pcl::PointIndices>(clusterIndices[i]);
+			extractIndices(cloud, inds, pc);
+			subPointCloud(pc, clusterIndices[i]);
+
+			pcl::toROSMsg(*pc, ob.point_cloud);
 
 			// Find bounding box and mass center.
 			pcl::MomentOfInertiaEstimation <pcl::PointXYZRGBA> feature_extractor;
@@ -246,6 +251,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			geometry_msgs::Pose pose;
 
 			feature_extractor.setInputCloud(pc);
+			feature_extractor.setIndices(inds);
 			feature_extractor.compute();
 			feature_extractor.getOBB (min_point, max_point, pos_point, rotational_matrix);
 			//feature_extractor.getAABB(min_AABB, max_AABB);
@@ -259,10 +265,12 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			pose.position.x = pos_point.x; pose.position.y = pos_point.y; pose.position.z = pos_point.z;
 			//mass_pt.x = mass_center[0]; mass_pt.y = mass_center[1]; mass_pt.z = mass_center[2];
 
-			//obs.objects[i].mass_center = mass_pt;
-			obs.objects[i].bb.min_pt = min_pt;
-			obs.objects[i].bb.max_pt = max_pt;
-			obs.objects[i].bb.pose = pose;
+			//ob.mass_center = mass_pt;
+			ob.bb.min_pt = min_pt;;
+			ob.bb.max_pt = max_pt;;
+			ob.bb.pose = pose;;
+
+			obs.objects[i] = ob;
 		}
 		//colourPointCloud(remainingCloud, clusterIndices);
 
