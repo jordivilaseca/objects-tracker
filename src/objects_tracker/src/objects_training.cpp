@@ -16,6 +16,7 @@
 #include <objects_tracker/utilities/ros.hpp>
 #include <objects_tracker/utilities/pcl.hpp>
 #include <objects_tracker/utilities/utilities.hpp>
+#include <objects_tracker/utilities/recognition.hpp>
 
 #include <mutex>
 #include <thread>
@@ -31,6 +32,7 @@
 using namespace std;
 
 pcl::PointCloud<pcl::PointXYZRGBA>::Ptr object(new pcl::PointCloud<pcl::PointXYZRGBA>());
+pcl::PointIndices::Ptr objectInd(new pcl::PointIndices());
 bool newObject = false;
 mutex m;
 
@@ -100,10 +102,17 @@ void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 
   minClusterIndices = std::max_element(std::begin(clusterIndices), std::end(clusterIndices), [](pcl::PointIndices x, pcl::PointIndices y) {  return x.indices.size() < y.indices.size(); });
 
-  pcl::PointIndices::ConstPtr minIndices = boost::make_shared<pcl::PointIndices>(*minClusterIndices);
+  pcl::PointIndices::Ptr minIndices = boost::make_shared<pcl::PointIndices>(*minClusterIndices);
 
+  // Create object point cloud.
+  pcl::PointCloud<pcl::PointXYZRGBA>::Ptr obj(new pcl::PointCloud<pcl::PointXYZRGBA>());
+  extractIndices(cloud, minIndices, obj);
+  subPointCloud(obj, *minIndices);
+
+  // Safe copy.
   m.lock();
-  pcl::copyPointCloud(*cloud, minIndices->indices, *object);
+  object = obj;
+  objectInd = minIndices;
   newObject = true;
   m.unlock();
 
@@ -202,7 +211,7 @@ void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &k
 void computeFiles(const std::string &path) {
   
   std::vector<std::string> objectsNames;
-  pcl::PointCloud<pcl::VFHSignature308>::Ptr objectsDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
+  std::vector<std::vector<float>> objectsDescriptors;
   std::vector<std::string> objectsCount;
   boost::filesystem::path dir(path);
 
@@ -221,29 +230,40 @@ void computeFiles(const std::string &path) {
         continue; 
       }
 
-      // Load pointcloud
+      // Load pointcloud.
       pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGBA>());
       pcl::io::loadPCDFile<pcl::PointXYZRGBA>(rep.string(), *cloud);
 
+      // Compute indices.
+      pcl::PointIndices indices;
+      indices.indices.resize(cloud->points.size());
+      int nelems = 0;
+      for(int i = 0; i < cloud->points.size(); i++) {
+        pcl::PointXYZRGBA p = cloud->points[i];
+        if(!isnan(p.x)) indices.indices[nelems++] = i;
+      }
+      indices.indices.resize(nelems);
+
       // Compute descriptors.
-      pcl::PointCloud<pcl::VFHSignature308>::Ptr descriptor(new pcl::PointCloud<pcl::VFHSignature308>());
-      computeDescriptors(cloud, descriptor);
+      std::vector<std::vector<float>> descriptor;
+      computeDescriptors(cloud, indices, descriptor);
 
       // Update descriptors and names.
-      objectsDescriptors->points.insert(objectsDescriptors->points.end(), descriptor->points.begin(), descriptor->points.end());
-      objectsNames.insert(objectsNames.end(), descriptor->points.size(), obsIt->path().stem().string());
-      objectsCount.push_back(obsIt->path().stem().string() + " " + to_string(descriptor->points.size()));
+      objectsDescriptors.insert(objectsDescriptors.end(), descriptor.begin(), descriptor.end());
+      objectsNames.insert(objectsNames.end(), descriptor.size(), obsIt->path().stem().string());
+      objectsCount.push_back(obsIt->path().stem().string() + " " + to_string(descriptor.size()));
     }
 
     cout << "Created descriptors for " <<  obsIt->path().filename() << endl;
   }
 
-  assert(objectsNames.size() == objectsDescriptors->points.size());
+  assert(objectsNames.size() == objectsDescriptors.size());
 
   // Save descriptors.
-  objectsDescriptors->height = 1;
+  writeMatrix(objectsDescriptors, path + "/descriptors.pcd");
+  /*objectsDescriptors->height = 1;
   objectsDescriptors->width = objectsDescriptors->points.size();
-  pcl::io::savePCDFileASCII (path + "/descriptors.pcd", *objectsDescriptors);
+  pcl::io::savePCDFileASCII (path + "/descriptors.pcd", *objectsDescriptors);*/
 
   // Save list of objects.
   writeList(objectsNames, path + "/objects_names");
@@ -317,8 +337,10 @@ void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, cons
 
     // Safe copy of the current point cloud.
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr objectCopy(new pcl::PointCloud<pcl::PointXYZRGBA>());
+    pcl::PointIndices::Ptr indicesCopy(new pcl::PointIndices());
     m.lock();
     pcl::copyPointCloud(*object, *objectCopy);
+    indicesCopy = objectInd;
     newObject = false;
     m.unlock();
 
@@ -329,10 +351,12 @@ void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, cons
     }
 
     // Compute descriptors.
-    pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
-    computeDescriptors(object, target);
+    /*pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
+    computeDescriptors(object, target);*/
+    std::vector<std::vector<float>> target;
+    computeDescriptors(objectCopy, *indicesCopy, target);
 
-    findBestMatch(target, header, kdtree);
+    //findBestMatch(target, header, kdtree);
   }
 }
 

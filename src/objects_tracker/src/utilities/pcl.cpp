@@ -413,6 +413,21 @@ void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, c
 	chull.getHullPointIndices(hullIndices); 
 }
 
+void regionGrowing(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::IndicesPtr &indices, const pcl::PointCloud<pcl::Normal>::Ptr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, int nNeigh, int minClusSize, std::vector<pcl::PointIndices> &clusters) {
+	pcl::RegionGrowing<pcl::PointXYZRGBA, pcl::Normal> reg;
+	reg.setSearchMethod(tree);
+	reg.setNumberOfNeighbours(nNeigh);
+	reg.setMinClusterSize(minClusSize);
+	reg.setInputCloud(cloud);
+	reg.setIndices(indices);
+	reg.setInputNormals(normals);
+	reg.setSmoothnessThreshold(angleThresh);
+	reg.setCurvatureThreshold(curvatureThresh);
+
+	clusters = std::vector<pcl::PointIndices>();
+	reg.extract (clusters);
+}
+
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
@@ -471,7 +486,7 @@ void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, c
 }
 
 /* It returns the indices of cloud in a new pointcloud that is organized and the size of the object */
-void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices &indices) {
+void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointIndices &indices) {
 	pair<int,int> mi, ma;
 
 	int width = cloud->width;
@@ -491,12 +506,19 @@ void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::Po
 	}
 
 	// Move the object to the new position.
-	int newWidth = ma.first - mi.first;
-	int newHeight = ma.second - mi.second;
+	int newWidth = ma.first - mi.first + 1;
+	int newHeight = ma.second - mi.second + 1;
 	for(int i = 0; i < newHeight; i++) {
 		for(int j = 0; j < newWidth; j++) {
 			cloud->points[j + i*newWidth] = cloud->points[mi.first + j + (mi.second + i)*width];
 		}
+	}
+
+	// Update indices.
+	for(int &i : indices.indices) {
+		int x = i % width;
+		int y = (int) i/width;
+		i = (x - mi.first) + (y - mi.second)*newWidth;
 	}
 
 	// Update cloud parameters.
@@ -555,6 +577,22 @@ void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, p
        Descriptors
 ***********************/
 
+void vfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::PointIndices::Ptr &indices, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptor) {
+	pcl::VFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> vfh;
+	vfh.setInputCloud(object);
+	vfh.setInputNormals(normals);
+	vfh.setIndices(indices);
+	vfh.setSearchMethod(tree);
+	// Optionally, we can normalize the bins of the resulting histogram,
+	// using the total number of points.
+	vfh.setNormalizeBins(true);
+	// Also, we can normalize the SDC with the maximum size found between
+	// the centroid and any of the cluster's points.
+	vfh.setNormalizeDistance(true);
+ 
+	vfh.compute(*descriptor);
+}
+
 void ourcvfh(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGB>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
 	// OUR-CVFH estimation object.
 	pcl::OURCVFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> ourcvfh;
@@ -598,18 +636,4 @@ void shot352(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const p
 	shot.setRadiusSearch(radius);
  
 	shot.compute(*descriptors);
-}
-
-void computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudCopy(new pcl::PointCloud<pcl::PointXYZRGB>());
-	//pcl::copyPointCloud(*cloud, *cloudCopy);
-
-	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-	estimateNormals(cloudCopy, normals, 0.02);
-
-	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGB>);
-	tree->setInputCloud(cloudCopy);
-
-	ourcvfh(cloudCopy, normals, tree, 5.0 / 180.0 * M_PI, 1.0, true, descriptors);
-	//shot352(cloudCopy, normals, 0.02, descriptors);
 }

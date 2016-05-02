@@ -257,8 +257,16 @@ target_link_libraries(ros ${catkin_LIBRARIES} utilities)
 
 # utilities bridge
 add_library(bridge src/utilities/bridge.cpp)
-target_link_libraries(bridge ${PCL_LIBRARIES} ${OpenCV_LIBRARIES})
-add_dependencies(bridge opencv_nonfree249d.lib)
+target_link_libraries(bridge ${PCL_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+
+# utilities opencv
+add_library(opencv src/utilities/opencv.cpp)
+target_link_libraries(opencv ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+
+# utilities recognition
+add_library(recognition src/utilities/recognition.cpp)
+target_link_libraries(recognition ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} opencv bridge pcl)
+add_dependencies(recognition opencv bridge pcl)
 
 # extract_plane node
 add_executable(extract_plane src/extract_plane.cpp)
@@ -275,11 +283,12 @@ target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-c
 
 # objects_to_rviz node
 add_executable(objects_to_rviz src/objects_to_rviz.cpp)
-target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} -lyaml-cpp ros)
+target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} -lyaml-cpp ros bridge)
+add_dependencies(objects_to_rviz opencv_nonfree249d.lib bridge)
 
 # objects_training node
 add_executable(objects_training src/objects_training.cpp)
-target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${FLANN_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl)
+target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${FLANN_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
 
 # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)

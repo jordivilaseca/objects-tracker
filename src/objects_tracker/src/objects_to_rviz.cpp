@@ -11,6 +11,10 @@
 
 #include <objects_tracker/utilities/ros.hpp>
 #include <objects_tracker/utilities/utilities.hpp>
+#include <objects_tracker/utilities/bridge.hpp>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 using namespace std;
 
@@ -39,9 +43,18 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
     for (int i = 0; i < obs->objects.size(); i++) {
       pcl::PointCloud<pcl::PointXYZRGBA> aux = pcl::PointCloud<pcl::PointXYZRGBA>();
-      pcl::fromROSMsg (obs->objects[i].point_cloud, aux);
+      pcl::fromROSMsg(obs->objects[i].point_cloud, aux);
       
-      *cloud += aux;
+      *cloud += pcl::PointCloud<pcl::PointXYZRGBA>(aux, obs->objects[i].indices);
+
+      if (i == 0) {
+        cv::Mat image, mask;
+        pointcloud2mat(aux, image, mask);
+        cv::imshow("image", image);
+        cv::waitKey(25);
+        cv::imshow("mask", mask);
+        cv::waitKey(25);
+      }
     }
     cloud->header.frame_id = frame_id;
     pub_pc.publish(cloud);
@@ -52,6 +65,9 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "objects_to_rviz");
   ros::NodeHandle nh;
+
+  //cv::namedWindow("image", CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
+  cv::namedWindow("mask", CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
 
   std::string path = ros::package::getPath("objects_tracker");
   std::string file = path + "/cfg/tf.yaml";

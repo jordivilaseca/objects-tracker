@@ -5,6 +5,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 void computeColor(int i, int n, std::vector<int> &color);
 void computeColor(int i, int n, std::vector<double> &color);
@@ -62,8 +63,7 @@ template <typename T>
 bool readList(std::vector<T> &list, std::string path) {
 	std::ifstream fs;
 	fs.open(path);
-	if (!fs.is_open() || fs.fail())
-	return false;
+	if (!fs.is_open() || fs.fail()) return false;
 
 	T value;
 	while (fs >> value)
@@ -71,6 +71,42 @@ bool readList(std::vector<T> &list, std::string path) {
 		list.push_back(value);
 	}
 	fs.close();
+	return true;
+}
+
+template <typename T>
+void writeMatrix(const std::vector<std::vector<T>> &matrix, const std::string &path) {
+	std::ofstream fs;
+    fs.open (path);
+    for (size_t i = 0; i < matrix.size(); ++i) {
+    	for(size_t j = 0; j < matrix[i].size(); ++j) {
+    		fs << matrix[i][j] << " ";
+    	}
+    	fs << "\n";
+    }
+    fs.close();
+}
+
+template <typename T>
+bool readMatrix(std::vector<std::vector<T>> &matrix, const std::string &path) {
+
+	std::ifstream fs;
+	fs.open(path);
+	if (!fs.is_open() || fs.fail()) return false;
+
+	std::string line;
+	while(std::getline(fs, line)) {
+
+		std::vector<T> newTline;
+		T elem;
+		std::istringstream iss(line);
+
+		while ( iss >> elem) {    
+			newTline.push_back(elem);
+		}
+
+		matrix.push_back(newTline);
+	}
 	return true;
 }
 
