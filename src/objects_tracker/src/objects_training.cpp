@@ -36,6 +36,24 @@ pcl::PointIndices::Ptr objectInd(new pcl::PointIndices());
 bool newObject = false;
 mutex m;
 
+Recogniser::DTYPE dtype = Recogniser::DTYPE::BOTH;
+
+template <typename T>
+std::vector<T> computeHeader(const std::vector<T> &list) {
+  std::vector<T> header(list.size());
+
+  if(list.size() == 0) return header;
+
+  header[0] = list[0];
+  int nelem = 1;
+  for(int i = 1; i < list.size(); i++) {
+    if(list[i-1] != list[i]) header[nelem++] = list[i];
+  }
+  header.resize(nelem);
+
+  return header;
+}
+
 void publish_object_tf(const ros::TimerEvent&, tf::TransformBroadcaster &br, const Eigen::Vector3f &pos, const Eigen::Vector4f &quat, const std::string &frame_id) {
   tf::Transform transform;
   transform.setOrigin(tf::Vector3(pos[0], pos[1], pos[2]));
@@ -120,7 +138,7 @@ void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 }
 
 void print_help() {
-  cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Update training set.\n\t[2] Update testing set.\n\t[3] Compute descriptors database.\n\t[4] Try training \n\t[5] Compute confusion matrix\n\nEnter an option: ";
+  cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Update training set.\n\t[2] Update testing set.\n\t[3] Train model.\n\t[4] Try training.\n\t[5] Compute confusion matrix.\n\t[6] Change descriptor used.\n\t[7] Exit\n\nEnter an option: ";
 }
 
 void async_read(bool &newOption, std::string &option) {
@@ -172,25 +190,19 @@ std::string findBestMatch(const pcl::PointCloud<pcl::VFHSignature308>::Ptr targe
   return maxId;
 }
 
-void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const pcl::PointCloud<pcl::VFHSignature308>::Ptr &testingDescriptors, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &trainingNames, const std::vector<std::string> &testingCount, std::vector<std::vector<int>> &confMat) {
+void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &objectsNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<pcl::PointIndices> &objectsIndices, std::vector<std::vector<int>> &confMat) {
   
   int nelem = trainingHeader.size();
 
   confMat = std::vector<std::vector<int>>(nelem, std::vector<int>(nelem, 0));
 
-  int k = 0;
-  for(int k1 = 0; k1 < testingCount.size(); k1+=2) {
+  for(int k = 0; k < objectsNames.size(); k++) {
     // It contains [object, numPhotos]
 
-    std::string goodName = testingCount[k1];
-    int c = stoi(testingCount[k1+1]);
-
-    // Create target with its descriptors.
-    pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
-    target->points.insert(target->points.end(), &testingDescriptors->points[k],&testingDescriptors->points[k + c]);
-    // Find best match.
-    std::string name = findBestMatch(target, trainingNames, kdtree);
-
+    std::string goodName = objectsNames[k];
+    
+    std::string name = r.predict(objects[k], objectsIndices[k]);
+  
     // Find position in confusion matrix.
     auto iti = std::find(trainingHeader.begin(), trainingHeader.end(), goodName);
     int i = std::distance(trainingHeader.begin(), iti);
@@ -203,16 +215,15 @@ void computeConfusionMatrix(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &k
       int j = std::distance(trainingHeader.begin(), itj);
       confMat[i][j] += 1;
     }
-
-    k += c;
   }
 }
 
-void computeFiles(const std::string &path) {
+void readPointClouds(const std::string &path, std::vector<std::string> &objectsNames, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, std::vector<pcl::PointIndices> &objectsIndices) {
   
-  std::vector<std::string> objectsNames;
-  std::vector<std::vector<float>> objectsDescriptors;
-  std::vector<std::string> objectsCount;
+  objectsNames = std::vector<std::string>();
+  objects = std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr>();
+  objectsIndices = std::vector<pcl::PointIndices>();
+
   boost::filesystem::path dir(path);
 
   // Iterate over every object to calculate the descriptors.
@@ -244,34 +255,11 @@ void computeFiles(const std::string &path) {
       }
       indices.indices.resize(nelems);
 
-      // Compute descriptors.
-      std::vector<std::vector<float>> descriptor;
-      computeDescriptors(cloud, indices, descriptor);
-
-      // Update descriptors and names.
-      objectsDescriptors.insert(objectsDescriptors.end(), descriptor.begin(), descriptor.end());
-      objectsNames.insert(objectsNames.end(), descriptor.size(), obsIt->path().stem().string());
-      objectsCount.push_back(obsIt->path().stem().string() + " " + to_string(descriptor.size()));
+      objectsNames.push_back(obsIt->path().stem().string());
+      objects.push_back(cloud);
+      objectsIndices.push_back(indices);
     }
-
-    cout << "Created descriptors for " <<  obsIt->path().filename() << endl;
   }
-
-  assert(objectsNames.size() == objectsDescriptors.size());
-
-  // Save descriptors.
-  writeMatrix(objectsDescriptors, path + "/descriptors.pcd");
-  /*objectsDescriptors->height = 1;
-  objectsDescriptors->width = objectsDescriptors->points.size();
-  pcl::io::savePCDFileASCII (path + "/descriptors.pcd", *objectsDescriptors);*/
-
-  // Save list of objects.
-  writeList(objectsNames, path + "/objects_names");
-
-  // Save list of photos for object.
-  writeList(objectsCount, path + "/objects_count");
-
-  cout << "Descriptors computed and stored!" << endl;
 }
 
 void computeObjects(const std::string &objects_path) {
@@ -325,7 +313,7 @@ void computeObjects(const std::string &objects_path) {
   }
 }
 
-void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, const std::vector<std::string> &header) {
+void tryTraining(const Recogniser &r) {
   cout << "Press enter every moment you want to take a picture, enter 'exit' to stop." << endl; 
 
   while(true) {
@@ -350,115 +338,74 @@ void tryTraining(const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree, cons
       continue;
     }
 
+    std::string result = r.predict(objectCopy, *indicesCopy);
+    cout << result << endl;
+
+    /*
     // Compute descriptors.
-    /*pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
-    computeDescriptors(object, target);*/
+    pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
+    computeDescriptors(object, target);
     std::vector<std::vector<float>> target;
     computeDescriptors(objectCopy, *indicesCopy, target);
 
     //findBestMatch(target, header, kdtree);
+    */
   }
-}
-
-template <typename T>
-std::vector<T> computeHeader(const std::vector<T> &list) {
-  std::vector<T> header(list.size());
-
-  if(list.size() == 0) return header;
-
-  header[0] = list[0];
-  int nelem = 1;
-  for(int i = 1; i < list.size(); i++) {
-    if(list[i-1] != list[i]) header[nelem++] = list[i];
-  }
-  header.resize(nelem);
-
-  return header;
 }
 
 void parse_option(std::string option, std::string objects_path, std::string frame) {
   if (option.length() != 1) return;
 
+  std::string training_path = objects_path + "/training";
+  std::string testing_path = objects_path + "/testing";
+
+  Recogniser r(dtype);
+
   switch(option[0]) {
     case '1':
-      computeObjects(objects_path + "/training");
+      computeObjects(training_path);
       break;
 
     case '2':
-      computeObjects(objects_path + "/testing");
+      computeObjects(testing_path);
       break;
 
     case '3':
-      cout << "Compute training descriptors" << endl;
-      computeFiles(objects_path + "/training");
-
-      cout << "Compute testing descriptors" << endl;
-      computeFiles(objects_path + "/testing");
-      break;
+      {
+        // Read objects from disk.
+        cout << "Reading objects point clouds..." << flush;
+        std::vector<std::string> objectsNames;
+        std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> objects;
+        std::vector<pcl::PointIndices> objectsIndices;
+        readPointClouds(training_path, objectsNames, objects, objectsIndices);
+        cout << "ended" << endl;
+  
+        // Train model and store it.
+        
+        r.addObjects(objects, objectsNames, objectsIndices);
+        r.computeModel();
+        r.write(training_path);
+        break;
+      }
 
     case '4':
     case '5':
       {
-        std::string training_path = objects_path + "/training";
         boost::filesystem::path dir(training_path);
 
-        // Read objects names.
-        std::vector<std::string> trainingNames;
-        if (!readList(trainingNames, training_path + "/objects_names")) {
-          cout << "ERROR loading objects_names" << endl;
-          return;
-        }
-        cout << "Finished loading objects_names" << endl;
-
-        // Read descriptors.
-        pcl::PointCloud<pcl::VFHSignature308>::Ptr trainingDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
-        if (pcl::io::loadPCDFile(training_path + "/descriptors.pcd" , *trainingDescriptors) == -1) {
-          cout << "ERROR loading descriptors.pcd" << endl;
-          return;
-        }
-        cout << "Finished loading descriptors.pcd" << endl;
-
-        // Check if there are the same number of elements into the loaded structures
-        if(trainingNames.size() != trainingDescriptors->points.size()) {
-          cout << "ERROR: objects_names and descriptors.pcd have different number of elements" << endl;
-          return;
-        }
-
-        // Check there is at least one element into the loaded structures.
-        if(trainingNames.size() == 0 or trainingDescriptors->points.size() == 0) {
-          cout << "ERROR: objects_names or descriptors.pcd are empty" << endl;
-          return;
-        }
-
-        // Learn descriptors.
-        pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr kdtree(new pcl::KdTreeFLANN<pcl::VFHSignature308>());
-        kdtree->setInputCloud(trainingDescriptors);
+        r.read(training_path);
 
         if(option[0] == '4') {
-          tryTraining(kdtree, trainingNames);
+          tryTraining(r);
         } else {
-          std::string testing_path = objects_path + "/testing";
+          std::vector<std::string> objectsNames;
+          std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> objects;
+          std::vector<pcl::PointIndices> objectsIndices;
 
-          // Read objects names.
-          std::vector<std::string> testingCount;
-          if (!readList(testingCount, testing_path + "/objects_count")) {
-            cout << "ERROR loading objects_count" << endl;
-            return;
-          }
-          cout << "Finished loading objects_count" << endl;
-
-          std::vector<std::string> header = computeHeader(trainingNames);
-
-          // Compute confusion matrix.
+          readPointClouds(testing_path, objectsNames, objects, objectsIndices);
+          std::vector<std::string> header = computeHeader(objectsNames);
           std::vector<std::vector<int>> confMat;
-
-          pcl::PointCloud<pcl::VFHSignature308>::Ptr testingDescriptors(new pcl::PointCloud<pcl::VFHSignature308>());
-          if (pcl::io::loadPCDFile(testing_path + "/descriptors.pcd" , *testingDescriptors) == -1) {
-            cout << "ERROR loading descriptors.pcd" << endl;
-            return;
-          }
-
-          computeConfusionMatrix(kdtree, testingDescriptors, header, trainingNames, testingCount, confMat);
+          computeConfusionMatrix(r, header, objectsNames, objects, objectsIndices, confMat);
 
           cout << "Confusion matrix computed! Enter a file name: ";
           std::string name;
@@ -467,6 +414,30 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         }
         break;
       }
+    case '6':
+      {
+        cout << "Available types are:\n\t[1] Colour.\n\t[2] Shape.\n\t[3] Both.\n\n";
+        std::string type;
+        getline(cin, type);
+
+        if (type.length() != 1) cout << "Answer not correct" << endl;
+
+        switch(type[0]) {
+          case '1':
+            dtype = Recogniser::DTYPE::COLOR;
+            break;
+          case '2':
+            dtype = Recogniser::DTYPE::SHAPE;
+            break;
+          case '3':
+            dtype = Recogniser::DTYPE::BOTH;
+            break;
+          default:
+            cout << "Answer not correct" << endl;
+        }
+
+      }
+
   }
 }
 
@@ -565,8 +536,6 @@ int main(int argc, char **argv)
   ROS_INFO("Ready to learn a new object!");
   sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(topic, 1, boost::bind(pointcloud_callback, _1, markerSize*2.0, boost::ref(plane), boost::ref(limits), boost::ref(pointcloud_pub)));
 
-  print_help();
-
   std::string option;
   
   std::string path = ros::package::getPath("objects_tracker");
@@ -576,24 +545,13 @@ int main(int argc, char **argv)
 
   // Treatment of objects and options.
   while(true) {
+    print_help();
     getline(cin, option);
 
-    if (option == "-1") break;
+    if (option == "7") break;
 
     parse_option(option, path, frame);
     cout << "Enter an option: ";
   }
   spinner.stop();
-
-  /*pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-    estimateNormals(newObjectCloud, normals, 0.01);*/
-
-    /*for(int i = 0; i < normals->points.size(); i++) {
-      pcl::PointXYZRGBA p = newObjectCloud->points[i];
-      pcl::Normal n = normals->points[i];
-
-      std::vector< std::vector<double> > markerPos = {{p.x, p.y, p.z}, {p.x+n.normal_x, p.y+n.normal_y, p.z+n.normal_z}};
-      marker_pub.publish(buildLineMarker(frame, 4 + i, markerPos, 0.001, color3));
-    }*/
-
 }
