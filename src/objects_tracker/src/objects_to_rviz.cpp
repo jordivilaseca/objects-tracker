@@ -36,7 +36,10 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
       double pos[] = {pose.position.x, pose.position.y, pose.position.z};
       double scale[] = {bb.max_pt.x - bb.min_pt.x, bb.max_pt.y - bb.min_pt.y, bb.max_pt.z - bb.min_pt.z};
       double orien[] = {pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w};
-      pub_bb.publish(buildMarker(frame_id, i, visualization_msgs::Marker::CUBE, pos, scale, color, orien));
+      pub_bb.publish(buildMarker(frame_id, 2*i, visualization_msgs::Marker::CUBE, pos, scale, color, orien));
+      if(obs->objects[i].name != "") {
+        pub_bb.publish(buildText(frame_id, 2*i+1, pos, 0.05, obs->objects[i].name));
+      }
     }
   }
   if (pub_pc.getNumSubscribers() > 0) {
@@ -48,15 +51,6 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
       pcl::fromROSMsg(obs->objects[i].point_cloud, aux);
       
       *cloud += pcl::PointCloud<pcl::PointXYZRGBA>(aux, obs->objects[i].indices);
-
-      if (i == 0) {
-        cv::Mat image, mask;
-        pointcloud2mat(aux, image, mask);
-        cv::imshow("image", image);
-        cv::waitKey(25);
-        cv::imshow("mask", mask);
-        cv::waitKey(25);
-      }
     }
     cloud->header.frame_id = frame_id;
     pub_pc.publish(cloud);
@@ -67,9 +61,6 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "objects_to_rviz");
   ros::NodeHandle nh;
-
-  //cv::namedWindow("image", CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
-  cv::namedWindow("mask", CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
 
   std::string path = ros::package::getPath("objects_tracker");
   std::string file = path + "/cfg/tf.yaml";
@@ -82,8 +73,8 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  std::vector<ros::Subscriber> subs(config.size());
-  std::vector<ros::Publisher> pubs_bb(config.size());
+  std::vector<ros::Subscriber> subs(config.size()*config.size());
+  std::vector<ros::Publisher> pubs_bb(config.size()*config.size());
   std::vector<ros::Publisher> pubs_pc(config.size());
 
   int i = 0;
@@ -91,10 +82,13 @@ int main(int argc, char **argv)
     YAML::Node cam = itCam->first;
     YAML::Node par = itCam->second;
     std::string topic = "/" + cam.as<string>() + "/objects";
+    std::string namedTopic = "/" + cam.as<string>() + "/namedObjects";
 
-    pubs_bb[i] = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 50);
+    pubs_bb[2*i] = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 50);
+    pubs_bb[2*i+1] = nh.advertise<visualization_msgs::Marker>(namedTopic + "/boundingbox", 50);
     pubs_pc[i] = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(topic + "/pointcloud", 50);
-    subs[i] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[i]), boost::ref(pubs_pc[i])));
+    subs[i*2] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[2*i]), boost::ref(pubs_pc[i])));
+    subs[i*2+1] = nh.subscribe<objects_tracker::Objects>(namedTopic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[2*i+1]), boost::ref(pubs_pc[i])));
   }
 
   ros::spin();

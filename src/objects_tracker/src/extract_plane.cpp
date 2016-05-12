@@ -270,6 +270,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			ob.bb.max_pt = max_pt;
 			ob.bb.pose = pose;
 			ob.indices = clusterIndices[i].indices;
+			ob.name = "";
 
 			obs.objects[i] = ob;
 		}

@@ -10,40 +10,28 @@
 
 #include <objects_tracker/utilities/ros.hpp>
 #include <objects_tracker/utilities/utilities.hpp>
+#include <objects_tracker/utilities/recognition.hpp>
 
 using namespace std;
 
 YAML::Node config;
 
-void make_recognition(const objects_tracker::Objects::ConstPtr &obs, std::string cam) {
-  if (pub_bb.getNumSubscribers() > 0) {
+void make_recognition(const objects_tracker::Objects::ConstPtr &obs, const Recogniser &r, const ros::Publisher &pub) {
+  if (pub.getNumSubscribers() > 0) {
+    objects_tracker::Objects namedObs = *obs;
+
     // Publish bounding box as a square marker with small alpha.
-    for (int i = 0; i < obs->objects.size(); i++) {
-      objects_tracker::BoundingBox bb = obs->objects[i].bb;
+    for (objects_tracker::Object &o : namedObs.objects) {
 
-      std::vector<double> col(4,0.0);
-      computeColor(i, obs->objects.size(), col);
-      double color[] = {col[0], col[1], col[2], 0.5};
+      // Predict object.
+      pcl::PointCloud<pcl::PointXYZRGBA>::Ptr oCloud(new pcl::PointCloud<pcl::PointXYZRGBA>());
+      pcl::fromROSMsg(o.point_cloud, *oCloud);
+      pcl::PointIndices indices;
+      indices.indices = o.indices;
 
-      geometry_msgs::Pose pose = obs->objects[i].bb.pose;
-      double pos[] = {pose.position.x, pose.position.y, pose.position.z};
-      double scale[] = {bb.max_pt.x - bb.min_pt.x, bb.max_pt.y - bb.min_pt.y, bb.max_pt.z - bb.min_pt.z};
-      double orien[] = {pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w};
-      pub_bb.publish(buildMarker(frame_id, i, visualization_msgs::Marker::CUBE, pos, scale, color, orien));
+      o.name = r.predict(oCloud, indices);
     }
-  }
-  if (pub_pc.getNumSubscribers() > 0) {
-
-    // Publish pointcloud containing all the objects.
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
-    for (int i = 0; i < obs->objects.size(); i++) {
-      pcl::PointCloud<pcl::PointXYZRGBA> aux = pcl::PointCloud<pcl::PointXYZRGBA>();
-      pcl::fromROSMsg (obs->objects[i].point_cloud, aux);
-      
-      *cloud += aux;
-    }
-    cloud->header.frame_id = frame_id;
-    pub_pc.publish(cloud);
+    pub.publish(namedObs);
   }
 }
 
@@ -53,7 +41,10 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
 
   std::string path = ros::package::getPath("objects_tracker");
-  std::string file = path + "/cfg/tf.yaml";
+  std::string file = path + "/cfg/cams.yaml";
+
+  Recogniser r = Recogniser(Recogniser::DTYPE::BOTH);
+  r.read(ros::package::getPath("objects_tracker") + "/training");
 
   YAML::Node config;
   try {
@@ -63,15 +54,20 @@ int main(int argc, char **argv)
     return 0;
   }
 
+  std::cout << "config.size() = " << config.size() << std::endl; 
+  std::cout << config[0] << std::endl;
   std::vector<ros::Subscriber> subs(config.size());
+  std::vector<ros::Publisher> pubs(config.size());
 
   int i = 0;
   for (auto itCam = config.begin(); itCam != config.end(); ++itCam, ++i) {
-    YAML::Node cam = itCam->first;
-    YAML::Node par = itCam->second;
-    std::string topic = "/" + cam.as<string>() + "/objects";
+    std::string cam = itCam->as<std::string>();
+    std::cout << cam << " " << std::endl;
+    std::string subTopic = "/" + cam + "/objects";
+    std::string pubTopic = "/" + cam + "/namedObjects";
 
-    subs[i] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(make_recognition, _1, cam.as<string>()));
+    pubs[i] = nh.advertise<objects_tracker::Objects>(pubTopic, 1);
+    subs[i] = nh.subscribe<objects_tracker::Objects>(subTopic, 1, boost::bind(make_recognition, _1, boost::cref(r), boost::cref(pubs[i])));
   }
 
   ros::spin();

@@ -288,9 +288,14 @@ add_dependencies(objects_to_rviz opencv_nonfree249d.lib bridge)
 
 # objects_training node
 add_executable(objects_training src/objects_training.cpp)
-target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${FLANN_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
+target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
+add_dependencies(objects_to_rviz ros utilities pcl recognition)
 
-# example cuda compiler
+# objects_recognition node
+add_executable(objects_recognition src/objects_recognition.cpp)
+target_link_libraries(objects_recognition ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} -lyaml-cpp ros utilities pcl recognition)
+
+# # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
 # target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})
 # add_dependencies(extract_plane opencv_nonfree249d.lib utilities)
