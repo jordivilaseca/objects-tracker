@@ -215,6 +215,10 @@ void Recogniser::read(const std::string &path) {
 	fs["Vocabulary"] >> vocabulary;
 	fs.release();
 
+	cv::FileStorage d_fs(path + "/" + DESCRIPTOR_NAME, cv::FileStorage::READ);
+    d_fs["Descriptor"] << dtype;
+    d_fs.release();
+
 	std::vector<cv::Mat> vocabularyVector = {vocabulary};
 	matcher->add(vocabularyVector);
 	matcher->train();
@@ -224,9 +228,13 @@ void Recogniser::write(const std::string &path) const {
 	model->save(path + "/" + MODEL_NAME);
 	writeList(objectsNames, path + "/" + NAMES_NAME);
 
-	cv::FileStorage fs(path + "/" + VOCABULARY_NAME, cv::FileStorage::WRITE);
-    fs << "Vocabulary" << vocabulary;
-    fs.release();
+	cv::FileStorage v_fs(path + "/" + VOCABULARY_NAME, cv::FileStorage::WRITE);
+    v_fs << "Vocabulary" << vocabulary;
+    v_fs.release();
+
+    cv::FileStorage d_fs(path + "/" + DESCRIPTOR_NAME, cv::FileStorage::WRITE);
+    d_fs << "Descriptor" << dtype;
+    d_fs.release();
 }
 
 std::string Recogniser::predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &object, const pcl::PointIndices &indices) const {

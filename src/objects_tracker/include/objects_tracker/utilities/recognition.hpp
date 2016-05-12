@@ -44,6 +44,7 @@ private:
 	const std::string MATCHER_NAME = "matcher.yml";
 	const std::string NAMES_NAME = "names";
 	const std::string VOCABULARY_NAME = "vocabulary.yml";
+	const std::string DESCRIPTOR_NAME = "descriptor.yml";
 
 	std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> objects;
 	std::vector<std::string> objectsResults;
