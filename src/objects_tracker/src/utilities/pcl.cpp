@@ -585,7 +585,7 @@ void vfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::
 	vfh.setSearchMethod(tree);
 	// Optionally, we can normalize the bins of the resulting histogram,
 	// using the total number of points.
-	vfh.setNormalizeBins(true);
+	vfh.setNormalizeBins(false);
 	// Also, we can normalize the SDC with the maximum size found between
 	// the centroid and any of the cluster's points.
 	vfh.setNormalizeDistance(true);

@@ -81,7 +81,7 @@ struct kinect {
 };
 
 // Total number of planes to find.
-const int NUM_PLANES = 2;
+const int NUM_PLANES = 3;
 
 const int NUM_CAMS = 2;
 

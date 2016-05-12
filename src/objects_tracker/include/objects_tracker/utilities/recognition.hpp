@@ -8,20 +8,28 @@
 #include <pcl/point_types.h>
 
 // opencv includes.
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/features2d/features2d.hpp>
-#include <opencv2/ml/ml.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/features2d.hpp>
+#include <opencv2/ml.hpp>
 
 class Recogniser
 {
 
 public:
 	enum DTYPE {COLOR, SHAPE, BOTH};
+
+	int clustersPerObject = 5;
+	float normalEstimationDist = 0.03;
+	float RGAngle = 5.0;
+	float RGCurvature = 1.0;
+	int RGNumNeighbours = 40;
+	int RGMinClusterSize = 50;
 	
 	Recogniser(DTYPE d = DTYPE::BOTH);
-	Recogniser(cv::DescriptorMatcher *matcher, cv::NormalBayesClassifier *model, DTYPE d = DTYPE::BOTH);
+	Recogniser(cv::DescriptorMatcher *matcher, DTYPE d = DTYPE::BOTH);
 	~Recogniser();
+	void setDescriptor(DTYPE d);
 	void computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &indices, cv::Mat &descriptors) const;
 	void addObjects(const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<std::string> &objectsResults, const std::vector<pcl::PointIndices> &objectsIndices);
 	void computeModel();
@@ -46,7 +54,7 @@ private:
 	uint dSize;
 
 	cv::DescriptorMatcher *matcher;
-	cv::NormalBayesClassifier *model;
+	cv::Ptr<cv::ml::SVM> model;
 
 	int getNumObjects() const;
 	std::vector<std::string> getObjects() const;

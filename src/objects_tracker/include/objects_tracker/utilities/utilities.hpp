@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <numeric>
 
 void computeColor(int i, int n, std::vector<int> &color);
 void computeColor(int i, int n, std::vector<double> &color);
@@ -48,6 +49,15 @@ void computeColors(int n, std::vector< std::vector<T> > &colours) {
 	for(int i = 0; i < n; i++) {
 		computeColor(i, n, colours[i]);
 	}
+}
+
+template <typename T>
+T sum(const std::vector<T> &list) {
+	T total = {};
+
+	for(const T &elem : list) total += elem;
+
+	return total;
 }
 
 template <typename T>
@@ -116,7 +126,7 @@ void printList(const std::vector<T> &list) {
 	std::cout << std::endl;
 }
 
-void writeConfusionMatrix(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &objects,const std::string &path);
+void writeMetrics(const std::vector<std::vector<int>> &confMat, float accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &header,const std::string &path);
 
 void quaternion2euler(const std::vector<float> q, std::vector<float> &e);
 

@@ -205,7 +205,7 @@ include_directories(
 ## My packages ##
 #################
 
-find_package(OpenCV 2 REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
 #find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -283,7 +283,7 @@ target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-c
 
 # objects_to_rviz node
 add_executable(objects_to_rviz src/objects_to_rviz.cpp)
-target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} -lyaml-cpp ros bridge)
+target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${OPENCV_LIB} -lyaml-cpp ros bridge)
 add_dependencies(objects_to_rviz opencv_nonfree249d.lib bridge)
 
 # objects_training node

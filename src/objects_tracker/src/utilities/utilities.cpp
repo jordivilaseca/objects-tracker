@@ -53,7 +53,7 @@ void quaternion2euler(const std::vector<float> q, std::vector<float> &e) {
 	e[2] = atan2(2*(q[0]*q[3] + q[1]*q[2]), 1 - 2*(q[2]*q[2] + q[3]*q[3]));
 }
 
-void writeConfusionMatrix(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &header,const std::string &path) {
+void writeMetrics(const std::vector<std::vector<int>> &confMat, float accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &header,const std::string &path) {
 	std::ofstream fs;
 	fs.open(path);
 
@@ -61,7 +61,7 @@ void writeConfusionMatrix(const std::vector<std::vector<int>> &confMat, const st
 	for(int i = 0; i < confMat.size(); i++) {
 		fs << ", " << header[i];
 	}
-	fs << "\n";
+	fs << ",,Average\n";
 	for(int i = 0; i < confMat.size(); i++) {
 		fs << header[i];
 		for(int j = 0; j < confMat.size(); j++) {
@@ -69,4 +69,26 @@ void writeConfusionMatrix(const std::vector<std::vector<int>> &confMat, const st
 		}
 		fs << "\n";
 	}
+
+	fs << "\n";
+
+	// Print accuracy.
+	fs << "Accuracy,";
+	for(int i = 0; i < confMat.size(); i++) fs << ",";
+	fs << "," << accur << "\n";
+
+	// Print precision.
+	fs << "Precision,";
+	for(int i = 0; i < precision.size(); i++) fs << precision[i] << ",";
+	fs << "," << sum(precision) / (float) precision.size() << "\n";
+
+	// Print recall.
+	fs << "Recall,";
+	for(int i = 0; i < recall.size(); i++) fs << recall[i] << ",";
+	fs << "," << sum(recall) / (float) recall.size() << "\n";
+
+	// Print fmeasure.
+	fs << "F-measure,";
+	for(int i = 0; i < fmeasure.size(); i++) fs << fmeasure[i] << ",";
+	fs << "," << sum(fmeasure) / (float) fmeasure.size() << "\n";
 }

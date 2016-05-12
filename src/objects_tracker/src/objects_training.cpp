@@ -37,6 +37,7 @@ bool newObject = false;
 mutex m;
 
 Recogniser::DTYPE dtype = Recogniser::DTYPE::BOTH;
+Recogniser r(dtype);
 
 template <typename T>
 std::vector<T> computeHeader(const std::vector<T> &list) {
@@ -138,7 +139,7 @@ void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 }
 
 void print_help() {
-  cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Update training set.\n\t[2] Update testing set.\n\t[3] Train model.\n\t[4] Try training.\n\t[5] Compute confusion matrix.\n\t[6] Change descriptor used.\n\t[7] Exit\n\nEnter an option: ";
+  cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Update training set.\n\t[2] Update testing set.\n\t[3] Train model.\n\t[4] Try training.\n\t[5] Compute confusion matrix.\n\t[6] Change descriptor used.\n\t[7] Change Parameters.\n\t[8] Exit\n\nEnter an option: ";
 }
 
 void async_read(bool &newOption, std::string &option) {
@@ -217,6 +218,47 @@ void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> 
     }
   }
 }
+
+void computeMetrics(const std::vector<std::vector<int>> &confMat, float &accur, std::vector<float> &precision, std::vector<float> &recall, std::vector<float> &fmeasure) {
+  // Compute accuracy.
+  int total = 0;
+  int correct = 0;
+  for(int i = 0; i < confMat.size(); i++) {
+    for(int j = 0; j < confMat[0].size(); j++) {
+      if (i == j) correct += confMat[i][j];
+      total += confMat[i][j];
+    }
+  }
+  accur = (float) correct / (float) total;
+
+  // Compute precision.
+  precision = std::vector<float>(confMat.size());
+  for(int i = 0; i < confMat.size(); i++) {
+    int truePositive = confMat[i][i];
+    int falsePositive = 0;
+    for(int j = 0; j < confMat[i].size(); j++) {
+      if(i != j) falsePositive += confMat[j][i];
+    }
+    precision[i] = (float) truePositive/((float) truePositive + (float) falsePositive);
+  }
+
+  // Compute recall.
+  recall = std::vector<float>(confMat.size());
+  for(int i = 0; i < confMat.size(); i++) {
+    int truePositive = confMat[i][i];
+    int falseNegative = 0;
+    for(int j = 0; j < confMat[i].size(); j++) {
+      if( i != j) falseNegative += confMat[i][j];
+    }
+    recall[i] = (float) truePositive/((float) truePositive + (float) falseNegative);
+  }
+
+  // Compute F measures.
+  fmeasure = std::vector<float>(confMat.size());
+  for(int i = 0; i < confMat.size(); i++) {
+    fmeasure[i] = 2.0*(precision[i]*recall[i])/(precision[i] + recall[i]);
+  }
+} 
 
 void readPointClouds(const std::string &path, std::vector<std::string> &objectsNames, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, std::vector<pcl::PointIndices> &objectsIndices) {
   
@@ -313,7 +355,7 @@ void computeObjects(const std::string &objects_path) {
   }
 }
 
-void tryTraining(const Recogniser &r) {
+void tryTraining(const Recogniser &ra) {
   cout << "Press enter every moment you want to take a picture, enter 'exit' to stop." << endl; 
 
   while(true) {
@@ -338,7 +380,7 @@ void tryTraining(const Recogniser &r) {
       continue;
     }
 
-    std::string result = r.predict(objectCopy, *indicesCopy);
+    std::string result = ra.predict(objectCopy, *indicesCopy);
     cout << result << endl;
 
     /*
@@ -358,8 +400,6 @@ void parse_option(std::string option, std::string objects_path, std::string fram
 
   std::string training_path = objects_path + "/training";
   std::string testing_path = objects_path + "/testing";
-
-  Recogniser r(dtype);
 
   switch(option[0]) {
     case '1':
@@ -381,7 +421,6 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         cout << "ended" << endl;
   
         // Train model and store it.
-        
         r.addObjects(objects, objectsNames, objectsIndices);
         r.computeModel();
         r.write(training_path);
@@ -391,9 +430,10 @@ void parse_option(std::string option, std::string objects_path, std::string fram
     case '4':
     case '5':
       {
-        boost::filesystem::path dir(training_path);
 
+        cout << "Reading training model... " << flush;
         r.read(training_path);
+        cout << "ended" << endl;
 
         if(option[0] == '4') {
           tryTraining(r);
@@ -402,15 +442,29 @@ void parse_option(std::string option, std::string objects_path, std::string fram
           std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> objects;
           std::vector<pcl::PointIndices> objectsIndices;
 
+          std::cout << "Reading point clouds... " << std::flush;
           readPointClouds(testing_path, objectsNames, objects, objectsIndices);
+          std::cout << "ended" << std::endl;
+
           std::vector<std::string> header = computeHeader(objectsNames);
           std::vector<std::vector<int>> confMat;
-          computeConfusionMatrix(r, header, objectsNames, objects, objectsIndices, confMat);
 
-          cout << "Confusion matrix computed! Enter a file name: ";
+          std::cout << "Computing confusion matrix... " << std::flush;
+          computeConfusionMatrix(r, header, objectsNames, objects, objectsIndices, confMat);
+          std::cout << "ended" << std::endl;
+
+          std::cout << "Computing metrics... " << std::flush;
+          float accur;
+          std::vector<float> precision;
+          std::vector<float> recall;
+          std::vector<float> fmeasure;
+          computeMetrics(confMat, accur, precision, recall, fmeasure);
+          std::cout << "ended" << std::endl;
+
+          cout << "Enter a file name: ";
           std::string name;
           getline(cin, name);
-          writeConfusionMatrix(confMat, header, objects_path + "/" + name + ".csv");
+          writeMetrics(confMat, accur, precision, recall, fmeasure, header, objects_path + "/" + name + ".csv");
         }
         break;
       }
@@ -424,20 +478,59 @@ void parse_option(std::string option, std::string objects_path, std::string fram
 
         switch(type[0]) {
           case '1':
-            dtype = Recogniser::DTYPE::COLOR;
+            r.setDescriptor(Recogniser::DTYPE::COLOR);
             break;
           case '2':
-            dtype = Recogniser::DTYPE::SHAPE;
+            r.setDescriptor(Recogniser::DTYPE::SHAPE);
             break;
           case '3':
-            dtype = Recogniser::DTYPE::BOTH;
+            r.setDescriptor(Recogniser::DTYPE::BOTH);
             break;
           default:
             cout << "Answer not correct" << endl;
         }
-
+        break;
       }
+    case '7':
+     {
+      cout << "Current options values:" << endl;
+      cout << "\t[1] Clusters per objects = " << r.clustersPerObject << endl;
+      cout << "\t[2] Normal estimation distance = " << r.normalEstimationDist << endl;
+      cout << "\t[3] Region Growing smoothness angle = " << r.RGAngle << endl;
+      cout << "\t[4] Region Growing curvature angle = " << r.RGCurvature << endl;
+      cout << "\t[5] Region Growing Number of neighbours = " << r.RGNumNeighbours << endl;
+      cout << "\t[6] Region Growing Minimum cluster size = " << r.RGMinClusterSize << endl;
+      cout << "Set option " << flush;
 
+      std::string type;
+      getline(cin, type);
+      cout << "\nSet new value " << flush;
+
+      std::string value;
+      getline(cin, value);
+
+      switch(type[0]) {
+        case '1':
+          r.clustersPerObject = stoi(value);
+          break;
+        case '2':
+          r.normalEstimationDist = stof(value);
+          break;
+        case '3':
+          r.RGAngle = stof(value);
+          break;
+        case '4':
+          r.RGCurvature = stof(value);
+          break;
+        case '5':
+          r.RGNumNeighbours = stoi(value);
+          break;
+        case '6':
+          r.RGMinClusterSize = stoi(value);
+          break;
+      }
+      break;
+    }
   }
 }
 
@@ -548,7 +641,7 @@ int main(int argc, char **argv)
     print_help();
     getline(cin, option);
 
-    if (option == "7") break;
+    if (option == "8") break;
 
     parse_option(option, path, frame);
     cout << "Enter an option: ";

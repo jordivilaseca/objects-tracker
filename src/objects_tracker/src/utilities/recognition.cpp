@@ -41,18 +41,21 @@ uint Recogniser::getDSize(DTYPE d) {
 	}
 }
 
-Recogniser::Recogniser(DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(new cv::FlannBasedMatcher()), model(new cv::NormalBayesClassifier()), dtype(d) {
+Recogniser::Recogniser(DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(new cv::FlannBasedMatcher()), model(cv::ml::SVM::create()), dtype(d) {
 	dSize = getDSize(dtype);
 }
-Recogniser::Recogniser(cv::DescriptorMatcher *matcher, cv::NormalBayesClassifier *model, DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(), model(), dtype(d) {
+Recogniser::Recogniser(cv::DescriptorMatcher *matcher, DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(), model(), dtype(d) {
 	dSize = getDSize(dtype);
 	*(this->matcher) = *matcher;
-	*(this->model) = *model;
 }
 
 Recogniser::~Recogniser() {
 	delete matcher;
-	delete model;
+}
+
+void Recogniser::setDescriptor(DTYPE d) {
+	dtype = d;
+	dSize = getDSize(d);
 }
 
 void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &indices, cv::Mat &descriptors) const {
@@ -62,7 +65,7 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 
 	// Estimate normals.
 	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-	estimateNormals(cloudCopy, normals, 0.02);
+	estimateNormals(cloudCopy, normals, normalEstimationDist);
 
 	// Initialize KdTree.
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());
@@ -71,7 +74,7 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 
 	// Compute clusters.
 	std::vector<pcl::PointIndices> clusters;
-	regionGrowing(cloud, indicesP, normals, tree, 5.0 / 180.0 * M_PI, 1.0, 40, 50, clusters);
+	regionGrowing(cloud, indicesP, normals, tree, RGAngle / 180.0 * M_PI, RGCurvature, RGNumNeighbours, RGMinClusterSize, clusters);
 
 	// Initialize descriptors.
 	descriptors = cv::Mat(clusters.size(), dSize, CV_32F, 0.0);
@@ -97,7 +100,7 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 			cv::Mat mask;
 			pointcloud2mat(*region, image, mask);
 
-			/*cv::namedWindow("mask" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
+/*			cv::namedWindow("mask" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
 			cv::namedWindow("image" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
 			cv::imshow("image" + std::to_string(i), image);
 	        cv::waitKey(250);
@@ -154,53 +157,61 @@ void Recogniser::computeModel() {
 	// Compute vocabulary of BoW.
 	std::cout << "Computing vocabulary... " << std::flush;
 	int nObjs = getNumObjects();
-	cv::BOWKMeansTrainer trainer(5*nObjs);
+	cv::BOWKMeansTrainer trainer(clustersPerObject*nObjs);
 	vocabulary = trainer.cluster(descriptors);
 	std::cout << "ended" << std::endl;
 
 	// Train matcher.
 	std::cout << "Training matcher... " << std::flush;
 	std::vector<cv::Mat> vocabularyVector = {vocabulary};
+	matcher->clear();
 	matcher->add(vocabularyVector);
 	matcher->train();
 	std::cout << "ended" << std::endl;
 
 	// Compute model descriptors.
 	std::cout << "Computing model descriptors... " << std::flush;
-	cv::Mat modelDescriptors(objectDescriptors.size(), vocabulary.cols, CV_8UC1, cv::Scalar(0));
+	cv::Mat modelDescriptors(objectDescriptors.size(), vocabulary.rows, CV_32FC1, cv::Scalar(0));
 	int n = 0;
 	for (const cv::Mat &m : objectDescriptors) {
 		std::vector<cv::DMatch> matches;
 		matcher->match(m, matches);
 
 		for (const cv::DMatch &match : matches) {
-			modelDescriptors.at<uchar>(n, match.trainIdx) = 1;
+			modelDescriptors.at<float>(n, match.trainIdx)++;
 		}
 		n++;
 	}
 	std::cout << "ended" << std::endl;
 
 	// Calculate responses mat.
-	cv::Mat responses(1, objectDescriptors.size(), CV_32SC1, cv::Scalar(0));
+	cv::Mat responses(objectDescriptors.size(),1, CV_32SC1, cv::Scalar(0));
 	n = 0;
 	for (int i = 1; i < objectsResults.size(); i++) {
 		if (objectsResults[i-1] != objectsResults[i]) n++;
-		responses.at<int>(i) = n;
+		responses.at<int>(i,0) = n;
 	}
 
 	// Train model.
 	std::cout << "Training model... " << std::flush;
-	modelDescriptors.convertTo(modelDescriptors, CV_32F);
-	model->train(modelDescriptors, responses, cv::Mat(), cv::Mat(), false);
+	model->clear();
+	cv::Ptr<cv::ml::TrainData> tdata = cv::ml::TrainData::create(modelDescriptors, cv::ml::ROW_SAMPLE, responses);
+	model->trainAuto(tdata,5);
 	std::cout << "ended" << std::endl;
+
+	// cv::Mat outputs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
+	// cv::Mat probs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
+	// model->predictProb(descriptors.row(0), outputs, probs);
+	// std::cout << std::endl << outputs << std::endl << probs << std::endl;
+	// std::cout << "asdf " << (int) outputs.at<int>(0) << std::endl;
+
 }
 
 void Recogniser::read(const std::string &path) {
-	model->load((path + "/" + MODEL_NAME).c_str(), "model");
+	model = cv::Algorithm::load<cv::ml::SVM>(path + "/" + MODEL_NAME);
 	readList(objectsNames, path + "/" + NAMES_NAME);
 
 	cv::FileStorage fs(path + "/" + VOCABULARY_NAME, cv::FileStorage::READ);
-	cv::Mat vocabulary;
 	fs["Vocabulary"] >> vocabulary;
 	fs.release();
 
@@ -210,7 +221,7 @@ void Recogniser::read(const std::string &path) {
 }
 
 void Recogniser::write(const std::string &path) const {
-	model->save((path + "/" + MODEL_NAME).c_str(), "model");
+	model->save(path + "/" + MODEL_NAME);
 	writeList(objectsNames, path + "/" + NAMES_NAME);
 
 	cv::FileStorage fs(path + "/" + VOCABULARY_NAME, cv::FileStorage::WRITE);
@@ -228,11 +239,50 @@ std::string Recogniser::predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &o
 	matcher->match(descriptors, matches);
 
 	// Compute model Descriptor.
-	cv::Mat modelDescriptor(1, dSize, CV_32F, cv::Scalar(0.0));
+	// std::cout << vocabulary << std::endl;
+	cv::Mat modelDescriptor(1, vocabulary.rows, CV_32FC1, cv::Scalar(0.0));
+	// std::cout << "pepe " << vocabulary.rows << std::endl;
 	for (const cv::DMatch &match : matches) {
-		modelDescriptor.at<float>(match.trainIdx) = 1;
+		// std::cout << match.trainIdx << " " << std::flush;
+		modelDescriptor.at<float>(0,match.trainIdx)++;
 	}
 	// Predict.
-	int index = (int) model->predict(modelDescriptor);
-	return objectsNames[index];
+	cv::Mat outputs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
+	cv::Mat probs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
+	int index = (int) model->predict(modelDescriptor, outputs);
+	// std::cout << modelDescriptor << std::endl << outputs << std::endl << probs << std::endl;
+	// std::cout << "asdf " << (int) outputs.at<int>(0) << std::endl;
+	return objectsNames[(int) outputs.at<float>(0)];
+
+	/*int N=12;
+	cv::Ptr<cv::ml::NormalBayesClassifier> nb = cv::ml::NormalBayesClassifier::create();
+	cv::Mat_<float> X(N,4);
+    X << 1,2,3,4,  1,2,3,4,   1,2,3,4,    1,2,3,4,
+         5,5,5,5,  5,5,5,5,   5,5,5,5,    5,5,5,5,
+         4,3,2,1,  4,3,2,1,   4,3,2,1,    4,3,2,1;
+
+    std::cout << "Read X" << std::endl;
+    // labels:
+    cv::Mat_<int> Y(N,1);
+    Y << 0,0,0,0, 1,1,1,1, 2,2,2,2;
+    nb->train(X, cv::ml::ROW_SAMPLE, Y);
+
+    std::cout << "Single prediction" << std::endl;
+    // single prediction:
+    cv::Mat R1,P1;
+    for (int i=0; i<N; i++)
+    {
+        cv::Mat r,p;
+        nb->predictProb(X.row(i), r, p);
+        R1.push_back(r);
+        P1.push_back(p);
+    }
+    std::cout << R1 << P1 << std::endl;
+
+    std::cout << "bulk prediction" << std::endl;
+
+    // bulk prediction:
+    cv::Mat R2,P2;
+    nb->predictProb(X, R2, P2);
+    std::cout << R2 << P2 << std::endl;*/
 }
