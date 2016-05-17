@@ -21,15 +21,16 @@ void make_recognition(const objects_tracker::Objects::ConstPtr &obs, const Recog
     objects_tracker::Objects namedObs = *obs;
 
     // Publish bounding box as a square marker with small alpha.
-    for (objects_tracker::Object &o : namedObs.objects) {
+    #pragma omp parallel for shared(namedObs) num_threads(5)
+    for (int i = 0; i < namedObs.objects.size(); i++) {
 
       // Predict object.
       pcl::PointCloud<pcl::PointXYZRGBA>::Ptr oCloud(new pcl::PointCloud<pcl::PointXYZRGBA>());
-      pcl::fromROSMsg(o.point_cloud, *oCloud);
+      pcl::fromROSMsg(namedObs.objects[i].point_cloud, *oCloud);
       pcl::PointIndices indices;
-      indices.indices = o.indices;
+      indices.indices = namedObs.objects[i].indices;
 
-      o.name = r.predict(oCloud, indices);
+      namedObs.objects[i].name = r.predict(oCloud, indices);
     }
     pub.publish(namedObs);
   }

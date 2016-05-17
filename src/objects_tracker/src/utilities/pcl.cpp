@@ -122,8 +122,16 @@ double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZR
 	return angle*57.2957795;
 }
 
-double vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
-	double x1,y1,z1,x2,y2,z2;
+float vectAngle3d(float x1, float y1, float z1, float x2, float y2, float z2) {
+	float dot = x1*x2 + y1*y2 + z1*z2;
+	float lenSq1 = x1*x1 + y1*y1 + z1*z1;
+	float lenSq2 = x2*x2 + y2*y2 + z2*z2;
+	float angle = acos(dot/sqrt(lenSq1 * lenSq2));
+	return angle*57.2957795;
+}
+
+float vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
+	float x1,y1,z1,x2,y2,z2;
 
 	x1 = q.x - p.x;
 	y1 = q.y - p.y;
@@ -133,11 +141,7 @@ double vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const
 	y2 = r.y - p.y;
 	z2 = r.z - p.z;
 
-	double dot = x1*x2 + y1*y2 + z1*z2;
-	double lenSq1 = x1*x1 + y1*y1 + z1*z1;
-	double lenSq2 = x2*x2 + y2*y2 + z2*z2;
-	double angle = acos(dot/sqrt(lenSq1 * lenSq2));
-	return angle*57.2957795;
+	return vectAngle3d(x1, y1, z1, x2, y2, z2);
 }
 
 
@@ -476,6 +480,21 @@ void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, p
 	ne.compute(*normals);
 }
 
+void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh) {
+	pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
+	ne.setInputCloud(cloud);
+
+	// Create an empty kdtree representation, and pass it to the normal estimation object.
+	// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());
+	tree->setInputCloud(cloud);
+	ne.setSearchMethod(tree);
+
+	normals = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
+	ne.setRadiusSearch(thresh);
+	ne.compute(*normals);
+}
+
 void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, const pcl::PointIndices::ConstPtr &inliers, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 	extract.setInputCloud(input);
@@ -525,6 +544,24 @@ void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointInd
 	cloud->width = newWidth;
 	cloud->height = newHeight;
 	cloud->points.resize(newWidth*newHeight);
+}
+
+void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output) {
+	output = pcl::PointIndices::Ptr(new pcl::PointIndices());
+	output->indices.resize(input->indices.size());
+
+	std::vector<float> n1 = planeCoefficients.values;
+
+	int nr_p = 0;
+	for(int i : input->indices) {
+		pcl::Normal n2 = cloud->points[i];
+
+		float angle = vectAngle3d(n1[0], n1[1], n1[2], n2.normal_x, n2.normal_y, n2.normal_z);
+		//std::cout << angle << " " << endl;
+		if(angleThresh >= angle or 180.0 - angle <= angleThresh) output->indices[nr_p++] = i;
+	}
+
+	output->indices.resize(nr_p);
 }
 
 /***********************

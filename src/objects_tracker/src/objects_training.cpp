@@ -150,47 +150,6 @@ void async_read(bool &newOption, std::string &option) {
   }
 }
 
-std::string findBestMatch(const pcl::PointCloud<pcl::VFHSignature308>::Ptr target, const std::vector<std::string> &descriptorNames, const pcl::KdTreeFLANN<pcl::VFHSignature308>::Ptr &kdtree) {
-
-  std::map<std::string, int> objectMatches;
-  for(int i = 0; i < target->points.size(); i++) {
-    std::vector<int> nn_index(3);
-    std::vector<float> nn_sqr_distance(3);
-    kdtree->nearestKSearch(target->points[i], 3, nn_index, nn_sqr_distance);
-
-    std::string nameFirst = descriptorNames[nn_index[0]];
-    std::string nameSecond = descriptorNames[nn_index[1]];
-    std::string nameThird = descriptorNames[nn_index[2]];
-
-    // Update matches
-    if (objectMatches.find(nameFirst) == objectMatches.end()) objectMatches[nameFirst] = 5;
-    else objectMatches[nameFirst] += 5;
-
-    // Update matches
-    if (objectMatches.find(nameSecond) == objectMatches.end()) objectMatches[nameSecond] = 3;
-    else objectMatches[nameSecond] += 3;
-
-    // Update matches
-    if (objectMatches.find(nameThird) == objectMatches.end()) objectMatches[nameThird] = 1;
-    else objectMatches[nameThird] += 1;
-  }
-
-  // Search the object with most matches.
-  std::string maxId = "";
-  int maxValue = 0;
-  int totalMatches = 0;
-  for(auto& iter : objectMatches) {
-    if(iter.second > maxValue) {
-      maxId = iter.first;
-      maxValue = iter.second;
-    }
-    totalMatches += iter.second;
-  }
-  assert(maxId != ""); 
-  cout << "The object is '" << maxId << "', voting results : " << maxValue << "/" << totalMatches << endl;
-  return maxId;
-}
-
 void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &objectsNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<pcl::PointIndices> &objectsIndices, std::vector<std::vector<int>> &confMat) {
   
   int nelem = trainingHeader.size();

@@ -59,8 +59,10 @@ void regionGrowing(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices);
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices);
 void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh);
+void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh);
 void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, const pcl::PointIndices::ConstPtr &inliers, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud);
 void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointIndices &indices);
+void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output);
 
 // Plane functions
 void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, float threshold, pcl::IndicesPtr &inliers);

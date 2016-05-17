@@ -59,13 +59,9 @@ void Recogniser::setDescriptor(DTYPE d) {
 }
 
 void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &indices, cv::Mat &descriptors) const {
-
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudCopy(new pcl::PointCloud<pcl::PointXYZRGB>());
-	pcl::copyPointCloud(*cloud, *cloudCopy);
-
 	// Estimate normals.
 	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-	estimateNormals(cloudCopy, normals, normalEstimationDist);
+	estimateNormals(cloud, normals, normalEstimationDist);
 
 	// Initialize KdTree.
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());

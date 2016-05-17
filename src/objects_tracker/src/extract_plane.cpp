@@ -1,5 +1,6 @@
 // Ros includes
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <objects_tracker/Objects.h>
@@ -22,6 +23,8 @@
 #include <objects_tracker/utilities/pcl.hpp>
 #include <objects_tracker/utilities/ros.hpp>
 
+#include "yaml-cpp/yaml.h"
+
 using namespace std;
 using namespace sensor_msgs;
 using namespace message_filters;
@@ -43,6 +46,8 @@ struct kinect {
 	};
 	int nplanes;
 	int iter;
+
+	Eigen::Vector3f plane_orientation;
 
 	std::string id;
 	std::string frame_id;
@@ -96,8 +101,25 @@ std::vector<kinect> ks;
 
 int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, const pcl::ModelCoefficients &planeCoefficients, pcl::PointIndices &planeLimits) {
 
+	// Compute normals.
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudCopy(new pcl::PointCloud<pcl::PointXYZRGB>());
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
+	estimateNormals(cloud, normals, 0.01);
+
+	// Ignore points with a different normal.
+	pcl::PointIndices::Ptr filtIndices(new pcl::PointIndices());
+	filterByNormal(normals, inputIndices, planeCoefficients, 40.0, filtIndices);
+
+	std::cout << "passed " << filtIndices->indices.size() << ", normals " << normals->points.size() << std::endl;
+
+	// Project point cloud to a plane.
+	pcl::ModelCoefficients::ConstPtr coefPtr = boost::make_shared<pcl::ModelCoefficients>(planeCoefficients);
+	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr projectedCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
+	projectToPlane(cloud, coefPtr, projectedCloud);
+
+	// Clustering.
 	std::vector<pcl::PointIndices> clusterIndices;
-	clustering(cloud, inputIndices, 0.005, 10000, clusterIndices);
+	clustering(projectedCloud, filtIndices, 0.01, 10000, clusterIndices);
 
 	if (clusterIndices.size() == 0) return 0;
 
@@ -111,11 +133,7 @@ int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 		}
 	}
 
-	// Project pointcloud to a plane.
 	pcl::PointIndices::ConstPtr clusterIndicesPtr = boost::make_shared<pcl::PointIndices>(clusterIndices[max_pos]);
-	pcl::ModelCoefficients::ConstPtr coefPtr = boost::make_shared<pcl::ModelCoefficients>(planeCoefficients);
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr projectedCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
-	projectToPlane(cloud, coefPtr, projectedCloud);
 
 	// Compute the convex hull of the cluster.
 	pcl::PointIndices hullIndices = pcl::PointIndices();
@@ -128,7 +146,7 @@ int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	return planeLimits.indices.size();
 }
 
-void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int nplanes, std::vector<pcl::ModelCoefficients> &coefficients, std::vector<pcl::PointIndices::Ptr> &inliers) {
+void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int nplanes, const Eigen::Vector3f &axis, std::vector<pcl::ModelCoefficients> &coefficients, std::vector<pcl::PointIndices::Ptr> &inliers) {
 
 	// Cloud containing the points without the planes.
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
@@ -137,8 +155,10 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
 
 	// Set segmentation parameters.
-	seg.setModelType(pcl::SACMODEL_PLANE);
+	seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
 	seg.setOptimizeCoefficients(true);
+	seg.setAxis(axis);
+	seg.setEpsAngle(5*3.1415/180.0); 
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setMaxIterations(5000);
 	seg.setDistanceThreshold(0.02);
@@ -157,6 +177,8 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 
 		if (inliers[i]->indices.size() == 0) break;
 
+		// std::cout << "axis :" << axis << std::endl << coefficients[i] << std::endl;
+
 		// Extract the plane inliers from the remainingCloud.
 		extract.setInputCloud(remainingCloud);
 		extract.setIndices(inliers[i]);
@@ -166,6 +188,7 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 }
 
 void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
+	// std::cout << "remove_planes in" << std::endl;
 	if (k.objects_pub.getNumSubscribers() > 0 or k.plane_pub.getNumSubscribers() > 0) {
 		// Cloud containing the points without the planes.
 		pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
@@ -175,6 +198,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 		// -1 -> part of a plane, 0 -> not part of an object, 1 -> part of an object.
 		std::vector<char> mask = std::vector<char>(cloud->points.size(), 0);
 
+		// std::cout << "pepe1" << endl;
 		for(int i = 0; i < k.nplanes; i++) {
 
 			// Safe load of the coefficients of the global variable.
@@ -188,7 +212,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 			std::vector<pcl::PointXYZRGBA> planeLimits = k.planes[i].limits;
 			k.m_limits.unlock();
 
-			//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
+			#pragma omp parallel for firstprivate(coef, planeLimits) shared(cloud, mask) num_threads(8)
 			for(size_t j = 0; j < cloud->points.size(); j++) {
 				// Calculate the distance from the point to the plane normal as the dot product
 				// D =(P-A).N/|N|
@@ -197,20 +221,22 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 				// make further calculations, we don't want this point.
 				if(isnan(cloud->points[j].x) or mask[j] == -1) continue;
 
-				if (isInlier(cloud, j , planeLimits, coef)) {
-					Eigen::Vector4f pt(cloud->points[j].x, cloud->points[j].y, cloud->points[j].z, 1);
-					float distance = coef.dot(pt);
-
-					if (fabsf(distance) <= 0.02) {
-						// If the point is at a distance less than X, then the point is in the plane, we mark it properly.
-						mask[j] = -1;
-					} else if (mask[j] == 0 and distance < 0.0){
-						// The point is not marked as being part of an object nor plane, if it is above it we mark it as object.
-						mask[j] = 1;
+				Eigen::Vector4f pt(cloud->points[j].x, cloud->points[j].y, cloud->points[j].z, 1);
+				float distance = coef.dot(pt);
+				if (distance < 0.02) {
+					if (isInlier(cloud, j , planeLimits, coef)) {
+						if (distance >= -0.02) {
+							// If the point is at a distance less than X, then the point is in the plane, we mark it properly.
+							mask[j] = -1;
+						} else if (mask[j] == 0){
+							// The point is not marked as being part of an object nor plane, if it is above it we mark it as object.
+							mask[j] = 1;
+						}
 					}
 				}
 			}
 		}
+		// cout << "pepe2" << endl;
 
 		// Parse inliers.
 		pcl::PointIndices::Ptr inliers = pcl::PointIndices::Ptr(new pcl::PointIndices());
@@ -221,6 +247,8 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 		}
 		inliers->indices.resize(nr_p);
 
+		// cout << "pepe3" << endl;
+
 		// Clustering
 		std::vector<pcl::PointIndices> clusterIndices;
 		clustering(cloud, inliers, 0.03, 200, clusterIndices);
@@ -229,6 +257,8 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 		objects_tracker::Objects obs;
 		obs.objects.resize(clusterIndices.size());
 		obs.header.frame_id = k.frame_id;
+
+		// cout << "pepe4" << endl;
 
 		#pragma omp parallel for shared(cloud, clusterIndices, obs) num_threads(10)
 		for(int i = 0; i < obs.objects.size(); i++) {
@@ -274,6 +304,7 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 
 			obs.objects[i] = ob;
 		}
+		// cout << "pepe5" << endl;
 		//colourPointCloud(remainingCloud, clusterIndices);
 
 		total_time += getTime()-init;
@@ -287,6 +318,8 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 		remainingCloud->header.frame_id = k.frame_id;
 		k.plane_pub.publish(remainingCloud);
 		k.objects_pub.publish(obs);
+
+		// std::cout << "remove_planes out" << std::endl;
 	}
 }
 
@@ -366,6 +399,7 @@ void calculate_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 
 	// Initialization
 	if(k.iter == 0) {
+		// std::cout << "Start calcuating limits" << std::endl;
 		initialize_limits(k, cloud->height*cloud->width);
 	}
 
@@ -381,16 +415,19 @@ void calculate_limits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 		}
 		k.existsLimits = true;
 		k.sub = nh->subscribe< pcl::PointCloud<pcl::PointXYZRGBA> >(k.sub_channel, 1, boost::bind(remove_planes, _1, boost::ref(k)));
+
+		// std::cout << "End calcuating limits" << std::endl;
 	}
 }
 
 void planes_coefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
+	// std::cout << "planes_coefficients in" << std::endl;
 	// Get plane coefficients and indices.
 	std::vector<pcl::ModelCoefficients> planesCoefficients;
 	std::vector<pcl::PointIndices::Ptr> planesIndices;
 
 	long long init = getTime();
-	getPlanes(cloud, NUM_PLANES, planesCoefficients, planesIndices);
+	getPlanes(cloud, NUM_PLANES,k.plane_orientation, planesCoefficients, planesIndices);
 	ROS_INFO("Calculated plane coefficients %s, total time %llu", k.id.c_str(), (getTime() - init));
 
 	// Safe copy of the coefficients to the global variable.
@@ -400,6 +437,7 @@ void planes_coefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 		k.m_coef.unlock();
 	}
 	k.sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(k.sub_channel, 1, boost::bind(calculate_limits, _1, boost::ref(k)));
+	// std::cout << "planes_coefficients out" << std::endl;
 }
 
 void publish_markers(const ros::TimerEvent&) {
@@ -416,15 +454,39 @@ int main(int argc, char **argv) {
 	ros::init(argc, argv, "extract_plane");
 	nh.reset(new ros::NodeHandle());
 
-	ks = std::vector<kinect>(NUM_CAMS);
-	ks[0].init(CAM1, "cam1_link", QUALITY_CAM, NUM_PLANES);
-	ks[1].init(CAM2, "cam2_link", QUALITY_CAM, NUM_PLANES);
+	// Compute plane direction.
+	std::string path = ros::package::getPath("objects_tracker");
+	std::string file = path + "/cfg/tf.yaml";
 
-	for(int i = 0; i < ks.size(); i++) {
-		ks[i].sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(ks[i].sub_channel, 1, boost::bind(planes_coefficients, _1, boost::ref(ks[i])));
+	YAML::Node config;
+	try {
+		config = YAML::LoadFile(file); // gets the root node
+	} catch (YAML::BadFile bf) {
+		ROS_ERROR("No configuration file found, tf_calibration node must be run before extracting objects.");
+		return 0;
+	}
+
+	ks = std::vector<kinect>(config.size());
+	int i = 0;
+	for (auto itCam = config.begin(); itCam != config.end(); ++itCam) {
+		YAML::Node cam = itCam->first;
+    	YAML::Node par = itCam->second;
+
+    	// Initialize kinect.
+		ks[i].init(cam.as<string>(), cam.as<string>() + "_link", QUALITY_CAM, NUM_PLANES);
+
+		// Set plane direction orientation.
+    	Eigen::Quaternion<float> quat(par["qw"].as<float>(), par["qx"].as<float>(), par["qy"].as<float>(), par["qz"].as<float>());
+    	ks[i].plane_orientation = quat.toRotationMatrix()*Eigen::Vector3f(1,0,0);
+    	ks[i].plane_orientation.normalize();
+
+    	// Set advertisers and publishers.
+    	ks[i].sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(ks[i].sub_channel, 1, boost::bind(planes_coefficients, _1, boost::ref(ks[i])));
 		ks[i].plane_pub = nh->advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(ks[i].pub_plane_channel, 1);
 		ks[i].marker_pub = nh->advertise<visualization_msgs::Marker>(ks[i].pub_marker_channel, 1);
 		ks[i].objects_pub = nh->advertise<objects_tracker::Objects>(ks[i].pub_objects_channel, 1);
+
+    	i++;
 	}
 
 	ros::Timer timer = nh->createTimer(ros::Duration(10), publish_markers);
