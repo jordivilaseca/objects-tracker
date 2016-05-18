@@ -45,6 +45,7 @@ pcl::PointXYZRGBA createXYZRGBA(double x, double y, double z);
 double triangleArea(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r);
 double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r, const std::vector<float> &n);
 int orient3d(const pcl::PointXYZRGBA &pa, const pcl::PointXYZRGBA &pb, const pcl::PointXYZRGBA &pc, const pcl::PointXYZRGBA &pd);
+void correctNormal(const float origin[], const pcl::PointXYZRGBA &p, pcl::ModelCoefficients &coef);
 
 // Polygon functions;
 void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const std::vector<float> &n, pcl::PointIndices &polygon);
@@ -62,7 +63,8 @@ void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, p
 void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh);
 void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, const pcl::PointIndices::ConstPtr &inliers, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud);
 void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointIndices &indices);
-void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output);
+void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr &input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output);
+void removeNans(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud, pcl::PointIndices::Ptr &input);
 
 // Plane functions
 void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, float threshold, pcl::IndicesPtr &inliers);

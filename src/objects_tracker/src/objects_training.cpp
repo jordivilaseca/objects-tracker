@@ -107,7 +107,6 @@ void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
       }
     }
   }
-
   trainingIndices->indices.resize(numIndices);
 
   if(trainingIndices->indices.size() == 0) return;

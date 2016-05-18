@@ -86,7 +86,7 @@ struct kinect {
 };
 
 // Total number of planes to find.
-const int NUM_PLANES = 3;
+const int NUM_PLANES = 4;
 
 const int NUM_CAMS = 2;
 
@@ -108,9 +108,9 @@ int getPlaneLimits(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 
 	// Ignore points with a different normal.
 	pcl::PointIndices::Ptr filtIndices(new pcl::PointIndices());
-	filterByNormal(normals, inputIndices, planeCoefficients, 40.0, filtIndices);
+	filterByNormal(normals, inputIndices, planeCoefficients, 15.0, filtIndices);
 
-	std::cout << "passed " << filtIndices->indices.size() << ", normals " << normals->points.size() << std::endl;
+	// std::cout << "passed " << filtIndices->indices.size() << ", normals " << normals->points.size() << std::endl;
 
 	// Project point cloud to a plane.
 	pcl::ModelCoefficients::ConstPtr coefPtr = boost::make_shared<pcl::ModelCoefficients>(planeCoefficients);
@@ -158,7 +158,7 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 	seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
 	seg.setOptimizeCoefficients(true);
 	seg.setAxis(axis);
-	seg.setEpsAngle(5*3.1415/180.0); 
+	seg.setEpsAngle(10*3.1415/180.0); 
 	seg.setMethodType(pcl::SAC_RANSAC);
 	seg.setMaxIterations(5000);
 	seg.setDistanceThreshold(0.02);
@@ -174,6 +174,14 @@ void getPlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int np
 		// Segment the largest planar component from the remaining cloud.
 		seg.setInputCloud(remainingCloud);
 		seg.segment(*inliers[i], coefficients[i]);
+
+		// std::cout << inliers[i]->indices.size() << std::endl;
+		removeNans(cloud,  inliers[i]);
+		// std::cout << inliers[i]->indices.size() << std::endl;
+		// Make sure the normal is looking to the camera.
+		float origin[] = {0,0,0};
+		correctNormal(origin, cloud->points[inliers[i]->indices[0]], coefficients[i]);
+		// std::cout << cloud->points[inliers[i]->indices[0]] << std::endl;
 
 		if (inliers[i]->indices.size() == 0) break;
 
@@ -203,15 +211,27 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 
 			// Safe load of the coefficients of the global variable.
 			k.m_coef.lock();
+			// std::cout << "pepes1" << std::endl;
 			pcl::ModelCoefficients planeCoef = k.planes[i].coefficients;
+			// std::cout << "pepes2" << std::endl;
 			Eigen::Vector4f coef = Eigen::Vector4f(planeCoef.values.data());
+			// std::cout << "pepes3" << std::endl;
 			k.m_coef.unlock();
+			// std::cout << "pepes4" << std::endl;
 
 			// Safe load of the limits of the global variable.
 			k.m_limits.lock();
+			// std::cout << "pepes5" << std::endl;
 			std::vector<pcl::PointXYZRGBA> planeLimits = k.planes[i].limits;
+			// std::cout << "pepes6" << std::endl;
 			k.m_limits.unlock();
+			// std::cout << "pepes7 " << std::endl;
+			// std::cout << cloud->points.size() <<  std::endl << coef << std::endl << planeLimits.size() << std::endl;
+		/*	for (auto p : planeLimits) {
+				// std::cout << p << endl;
+			}*/
 
+			if (k.planes[i].limits.size() == 0) continue;
 			#pragma omp parallel for firstprivate(coef, planeLimits) shared(cloud, mask) num_threads(8)
 			for(size_t j = 0; j < cloud->points.size(); j++) {
 				// Calculate the distance from the point to the plane normal as the dot product
@@ -220,12 +240,15 @@ void remove_planes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, ki
 				// If the x value of the pointcloud or it is marked as a point in a plane it is not needed to
 				// make further calculations, we don't want this point.
 				if(isnan(cloud->points[j].x) or mask[j] == -1) continue;
+				// std::cout << "pepess1" << std::endl;
 
 				Eigen::Vector4f pt(cloud->points[j].x, cloud->points[j].y, cloud->points[j].z, 1);
+				// std::cout << "pepess2" << std::endl;
 				float distance = coef.dot(pt);
-				if (distance < 0.02) {
+				// std::cout << "pepess3" << std::endl;
+				if (distance >= -0.02) {
 					if (isInlier(cloud, j , planeLimits, coef)) {
-						if (distance >= -0.02) {
+						if (distance <= 0.02) {
 							// If the point is at a distance less than X, then the point is in the plane, we mark it properly.
 							mask[j] = -1;
 						} else if (mask[j] == 0){
@@ -376,6 +399,8 @@ void build_limit_markers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 		std::vector< std::vector<double> > positions = std::vector< std::vector<double> >(k.planes[i].limits.size() + 1, std::vector<double>(3,0));
 		int j;
 
+		if (k.planes[i].limits.size() == 0) continue;
+
 		// Lines between consecutive points.
 		for(j = 0; j < k.planes[i].limits.size(); j++) {
 			pcl::PointXYZRGBA p = k.planes[i].limits[j];
@@ -442,7 +467,7 @@ void planes_coefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
 
 void publish_markers(const ros::TimerEvent&) {
 	for(int i = 0; i < ks.size(); i++) {
-		for (int j = 0; j < ks[i].nplanes; j++) {
+		for (int j = 0; j < ks[i].planes.size(); j++) {
 			for(int l = 0; l < ks[i].planes[j].markers.size(); l++) {
 				ks[i].marker_pub.publish(ks[i].planes[j].markers[l]);
 			}

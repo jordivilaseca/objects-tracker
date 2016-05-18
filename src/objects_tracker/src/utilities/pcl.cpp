@@ -179,7 +179,18 @@ int orient3d(const pcl::PointXYZRGBA &pa, const pcl::PointXYZRGBA &pb, const pcl
 	return 0;
 }
 
+void correctNormal(const float origin[], const pcl::PointXYZRGBA &p, pcl::ModelCoefficients &coef) {
+	float originVect[] = {origin[0] - p.x, origin[1] - p.y, origin[2] - p.z};
+	float angle = vectAngle3d(originVect[0], originVect[1], originVect[2], coef.values[0], coef.values[1], coef.values[2]);
 
+	if (angle > 90.0) {
+		coef.values[0] = -coef.values[0];
+		coef.values[1] = -coef.values[1];
+		coef.values[2] = -coef.values[2];
+		coef.values[3] = -coef.values[3];
+		std::cout << "Normal corrected, angle " << angle << std::endl;
+	}
+}
 
 /***********************
     Polygon functions
@@ -546,7 +557,7 @@ void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointInd
 	cloud->points.resize(newWidth*newHeight);
 }
 
-void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output) {
+void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr &input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output) {
 	output = pcl::PointIndices::Ptr(new pcl::PointIndices());
 	output->indices.resize(input->indices.size());
 
@@ -564,6 +575,16 @@ void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pc
 	output->indices.resize(nr_p);
 }
 
+void removeNans(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud,  pcl::PointIndices::Ptr &input) {
+	std::vector<int> aux(input->indices);
+
+	int nr_p = 0;
+	for(int i : aux) {
+		if (!isnan(cloud->points[i].x)) input->indices[nr_p++] = i;
+	}
+	input->indices.resize(nr_p);
+}
+
 /***********************
     Plane functions
 ***********************/
@@ -579,6 +600,8 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 
 	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
 	for(size_t i = 0; i < totalPoints; i++) {
+
+		if (isnan(cloud->points[i].x)) continue;
 		// Calculate the distance from the point to the plane normal as the dot product
 		// D =(P-A).N/|N|
 		Eigen::Vector4f pt(cloud->points[i].x,
