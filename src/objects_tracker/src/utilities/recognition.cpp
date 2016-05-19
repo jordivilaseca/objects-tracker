@@ -28,7 +28,7 @@ std::vector<std::string> Recogniser::getObjects() const {
 uint Recogniser::getDSize(DTYPE d) {
 	switch(d) {
 		case COLOR:
-			return COLOR_NBINS*COLOR_NBINS*COLOR_NBINS;
+			return H_BINS*S_BINS;
 			break;
 
 		case SHAPE:
@@ -36,12 +36,12 @@ uint Recogniser::getDSize(DTYPE d) {
 			break;
 
 		case BOTH:
-			return 308 + COLOR_NBINS*COLOR_NBINS*COLOR_NBINS;
+			return 308 + H_BINS*S_BINS;
 			break;
 	}
 }
 
-Recogniser::Recogniser(DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(new cv::FlannBasedMatcher()), model(cv::ml::SVM::create()), dtype(d) {
+Recogniser::Recogniser(DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(new cv::BFMatcher(cv::NORM_L1)), model(cv::ml::SVM::create()), dtype(d) {
 	dSize = getDSize(dtype);
 }
 Recogniser::Recogniser(cv::DescriptorMatcher *matcher, DTYPE d) : objects(), objectsResults(), objectsIndices(), vocabulary(), matcher(), model(), dtype(d) {
@@ -95,6 +95,7 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 			cv::Mat image;
 			cv::Mat mask;
 			pointcloud2mat(*region, image, mask);
+			cvtColor(image, image, cv::COLOR_BGR2HSV);
 
 /*			cv::namedWindow("mask" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
 			cv::namedWindow("image" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
@@ -104,7 +105,7 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 	        cv::waitKey(250);*/
 
 			// Compute color histogram.
-			calcRgbHist(image, mask, COLOR_NBINS, cvDesc);
+			calcHsvHist(image, mask, H_BINS, S_BINS, cvDesc);
 			cv::normalize(cvDesc, cvDesc, 0, 10, cv::NORM_MINMAX, -1, cv::Mat());
 		}
 
@@ -204,6 +205,7 @@ void Recogniser::computeModel() {
 }
 
 void Recogniser::read(const std::string &path) {
+	// std::cout << "in read" << std::endl;
 	model = cv::Algorithm::load<cv::ml::SVM>(path + "/" + MODEL_NAME);
 	readList(objectsNames, path + "/" + NAMES_NAME);
 
@@ -212,12 +214,16 @@ void Recogniser::read(const std::string &path) {
 	fs.release();
 
 	cv::FileStorage d_fs(path + "/" + DESCRIPTOR_NAME, cv::FileStorage::READ);
-    d_fs["Descriptor"] << dtype;
+	int d;
+    d_fs["Descriptor"] >> d;
     d_fs.release();
+    this->setDescriptor( static_cast<DTYPE>(d));
+    // std::cout << "dtype " << d << " " << path + "/" + DESCRIPTOR_NAME << std::endl;
 
 	std::vector<cv::Mat> vocabularyVector = {vocabulary};
 	matcher->add(vocabularyVector);
 	matcher->train();
+	// std::cout << "out read " << vocabulary.rows << std::endl;
 }
 
 void Recogniser::write(const std::string &path) const {
@@ -229,14 +235,20 @@ void Recogniser::write(const std::string &path) const {
     v_fs.release();
 
     cv::FileStorage d_fs(path + "/" + DESCRIPTOR_NAME, cv::FileStorage::WRITE);
-    d_fs << "Descriptor" << dtype;
+    d_fs << "Descriptor" << (int) dtype;
     d_fs.release();
 }
 
 std::string Recogniser::predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &object, const pcl::PointIndices &indices) const {
+	// std::cout << "in predict" << std::endl;
 	// Compute descriptors.
 	cv::Mat descriptors;
 	computeDescriptors(object, indices, descriptors);
+
+	// std::cout << "prematcher " << dSize << " " << descriptors.cols << std::endl;
+	// std::cout << vocabulary << std::endl << descriptors << std::endl;
+
+	// std::cout << "wat" << std::endl;
 
 	// Compute matches.
 	std::vector<cv::DMatch> matches;

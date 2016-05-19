@@ -27,12 +27,11 @@ void calcRgbHistSep(const cv::Mat &image, const cv::Mat &mask, int histSize, cv:
 }
 
 void calcRgbHist(const cv::Mat &image, const cv::Mat &mask, int bins, cv::Mat &hist) {
+
 	int histSize[] = {bins, bins, bins};
 	float range[] = {0, 256};
 	int channels[] = {0,1,2};
 	const float* histRange[] = {range, range, range};
-
-	// Split Mat into three Mats (one per color)
 	cv::Mat auxHist;
 
 	// Compute the histograms:
@@ -49,14 +48,31 @@ void calcRgbHist(const cv::Mat &image, const cv::Mat &mask, int bins, cv::Mat &h
 			}
 		}
 	}
-	
-	/*// From column matrix to row matrix.
-	cv::transpose(b_hist, b_hist);
-	cv::transpose(g_hist, g_hist);
-	cv::transpose(r_hist, r_hist);
+}
 
-	// Join all the histograms.
-	hist = b_hist;
-	cv::hconcat(hist, g_hist, hist);
-	cv::hconcat(hist, r_hist, hist);*/
+void calcHsvHist(const cv::Mat &image, const cv::Mat &mask, int h_bins, int s_bins, cv::Mat &hist) {
+    int histSize[] = { h_bins, s_bins };
+
+    // hue varies from 0 to 179, saturation from 0 to 255
+    float h_ranges[] = { 0, 180 };
+    float s_ranges[] = { 0, 256 };
+
+    const float* histRange[] = { h_ranges, s_ranges };
+
+    // Use the o-th and 1-st channels
+    int channels[] = { 0, 1 };
+
+	// Compute the histograms.
+	cv::Mat auxHist;
+	cv::calcHist( &image, 1, channels, mask, auxHist, 2, histSize, histRange, true, false );
+
+	// Fill histogram.
+	hist = cv::Mat(1,h_bins*s_bins,CV_32FC1,0.0);
+	int nelem = 0;
+	for(int i = 0; i < h_bins; i++) {
+		for(int j = 0; j < s_bins; j++) {
+			float f = auxHist.at<float>(i,j);
+			hist.at<float>(nelem++) = f;
+		}
+	}
 }

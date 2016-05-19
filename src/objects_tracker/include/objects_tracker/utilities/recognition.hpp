@@ -38,7 +38,8 @@ public:
 	std::string predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &object, const pcl::PointIndices &indices) const;
 
 private:
-	const int COLOR_NBINS = 6;
+	const int H_BINS = 15;
+	const int S_BINS = 18;
 
 	const std::string MODEL_NAME = "model.yml";
 	const std::string MATCHER_NAME = "matcher.yml";
