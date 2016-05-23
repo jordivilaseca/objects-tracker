@@ -18,10 +18,11 @@ YAML::Node config;
 
 void make_recognition(const objects_tracker::Objects::ConstPtr &obs, const Recogniser &r, const ros::Publisher &pub) {
   if (pub.getNumSubscribers() > 0) {
+    long long init = getTime();
     objects_tracker::Objects namedObs = *obs;
 
     // Publish bounding box as a square marker with small alpha.
-    #pragma omp parallel for shared(namedObs) num_threads(5)
+    #pragma omp parallel for shared(namedObs) num_threads(10)
     for (int i = 0; i < namedObs.objects.size(); i++) {
 
       // Predict object.
@@ -33,6 +34,7 @@ void make_recognition(const objects_tracker::Objects::ConstPtr &obs, const Recog
       namedObs.objects[i].name = r.predict(oCloud, indices);
     }
     pub.publish(namedObs);
+    cout << getTime() - init << std::endl;
   }
 }
 

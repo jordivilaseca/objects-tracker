@@ -105,8 +105,8 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 	        cv::waitKey(250);*/
 
 			// Compute color histogram.
-			calcHsvHist(image, mask, H_BINS, S_BINS, cvDesc);
-			cv::normalize(cvDesc, cvDesc, 0, 10, cv::NORM_MINMAX, -1, cv::Mat());
+			float incPerValue = totalSumHisto/regionIndicies->indices.size();
+			calcHsvHist(image, mask, H_BINS, S_BINS, incPerValue, cvDesc);
 		}
 
 		// Join descriptors.

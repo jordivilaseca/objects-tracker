@@ -29,8 +29,6 @@ using namespace std;
 using namespace sensor_msgs;
 using namespace message_filters;
 
-#define CAM1 "cam1"
-#define CAM2 "cam2"
 #define QUALITY_CAM "qhd"
 
 boost::shared_ptr<ros::NodeHandle> nh;
@@ -86,7 +84,7 @@ struct kinect {
 };
 
 // Total number of planes to find.
-const int NUM_PLANES = 4;
+const int NUM_PLANES = 1;
 
 const int NUM_CAMS = 2;
 
@@ -487,18 +485,26 @@ int main(int argc, char **argv) {
 	try {
 		config = YAML::LoadFile(file); // gets the root node
 	} catch (YAML::BadFile bf) {
-		ROS_ERROR("No configuration file found, tf_calibration node must be run before extracting objects.");
+		ROS_ERROR("No configuration file tf.yaml found, tf_calibration node must be run before extracting objects.");
 		return 0;
 	}
 
-	ks = std::vector<kinect>(config.size());
+	YAML::Node cams;
+	try {
+		cams = YAML::LoadFile(path + "/cfg/cams.yaml"); // gets the root node
+	} catch (YAML::BadFile bf) {
+		ROS_ERROR("No configuration file cams.yaml found, it was searched at %s", (path + "/cfg/cams.yaml").c_str());
+		return 0;
+	}
+
+	ks = std::vector<kinect>(cams.size());
 	int i = 0;
-	for (auto itCam = config.begin(); itCam != config.end(); ++itCam) {
-		YAML::Node cam = itCam->first;
-    	YAML::Node par = itCam->second;
+	for (auto itCam = cams.begin(); itCam != cams.end(); ++itCam, ++i) {
+    	std::string cam = itCam->as<std::string>();
+    	YAML::Node par = config[cam];
 
     	// Initialize kinect.
-		ks[i].init(cam.as<string>(), cam.as<string>() + "_link", QUALITY_CAM, NUM_PLANES);
+		ks[i].init(cam, cam + "_link", QUALITY_CAM, NUM_PLANES);
 
 		// Set plane direction orientation.
     	Eigen::Quaternion<float> quat(par["qw"].as<float>(), par["qx"].as<float>(), par["qy"].as<float>(), par["qz"].as<float>());

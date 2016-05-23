@@ -33,8 +33,10 @@ int main(int argc, char **argv)
   try {
     config = YAML::LoadFile(file); // gets the root node
     ros::Timer timer = nh.createTimer(ros::Duration(5), boost::bind(publish_poses, _1, boost::ref(br)));
-    ros::spin();
   } catch (YAML::BadFile) {
     ROS_ERROR("TF not found, searched at %s. The node is going to stop.", file.c_str());
+    return 0;
   }
+
+  ros::spin();
 }

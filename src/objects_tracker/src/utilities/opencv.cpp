@@ -50,7 +50,7 @@ void calcRgbHist(const cv::Mat &image, const cv::Mat &mask, int bins, cv::Mat &h
 	}
 }
 
-void calcHsvHist(const cv::Mat &image, const cv::Mat &mask, int h_bins, int s_bins, cv::Mat &hist) {
+void calcHsvHist(const cv::Mat &image, const cv::Mat &mask, int h_bins, int s_bins, float incPerValue, cv::Mat &hist) {
     int histSize[] = { h_bins, s_bins };
 
     // hue varies from 0 to 179, saturation from 0 to 255
@@ -72,7 +72,7 @@ void calcHsvHist(const cv::Mat &image, const cv::Mat &mask, int h_bins, int s_bi
 	for(int i = 0; i < h_bins; i++) {
 		for(int j = 0; j < s_bins; j++) {
 			float f = auxHist.at<float>(i,j);
-			hist.at<float>(nelem++) = f;
+			hist.at<float>(nelem++) = f*incPerValue;
 		}
 	}
 }

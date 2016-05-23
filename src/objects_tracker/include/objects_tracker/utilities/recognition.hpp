@@ -40,6 +40,7 @@ public:
 private:
 	const int H_BINS = 15;
 	const int S_BINS = 18;
+	const float totalSumHisto = 500;
 
 	const std::string MODEL_NAME = "model.yml";
 	const std::string MATCHER_NAME = "matcher.yml";
