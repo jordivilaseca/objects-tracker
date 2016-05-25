@@ -61,6 +61,14 @@ T sum(const std::vector<T> &list) {
 }
 
 template <typename T>
+void quaternion2euler(const T q, T &e) {
+	assert(e.size() == 3);
+	e[0] = atan2(2*(q[0]*q[1] + q[2]*q[3]), 1 - 2*(q[1]*q[1] + q[2]*q[2]));
+	e[1] = asin(2*(q[0]*q[2] + q[3]*q[1]));
+	e[2] = atan2(2*(q[0]*q[3] + q[1]*q[2]), 1 - 2*(q[2]*q[2] + q[3]*q[3]));
+}
+
+template <typename T>
 void writeList(const std::vector<T> &list, std::string path) {
 	std::ofstream fs;
     fs.open (path);

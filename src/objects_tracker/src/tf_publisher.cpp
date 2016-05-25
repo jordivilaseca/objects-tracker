@@ -14,9 +14,12 @@ void publish_poses(const ros::TimerEvent&, tf::TransformBroadcaster &br) {
     YAML::Node par = itCam->second;
 
     tf::Transform transform;
-    transform.setOrigin(tf::Vector3(par["x"].as<float>(), par["y"].as<float>(), par["z"].as<float>()));
-    transform.setRotation(tf::Quaternion(par["qx"].as<float>(), par["qy"].as<float>(), par["qz"].as<float>(), par["qw"].as<float>()));
-    br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), cam.as<string>() + "_link", cam.as<string>() + "/pose"));
+    std::vector<float> pos = par["pos"].as<std::vector<float>>();
+    std::vector<float> quat = par["quat"].as<std::vector<float>>();
+
+    transform.setOrigin(tf::Vector3(pos[0], pos[1], pos[2]));
+    transform.setRotation(tf::Quaternion(quat[0], quat[1], quat[2], quat[3]));
+    br.sendTransform(tf::StampedTransform(transform.inverse(), ros::Time::now(), par["parent_frame"].as<std::string>(), cam.as<string>()));
   }
 }
 
@@ -30,9 +33,10 @@ int main(int argc, char **argv)
   std::string path = ros::package::getPath("objects_tracker");
   std::string file = path + "/cfg/tf.yaml";
 
+  ros::Timer timer;
   try {
     config = YAML::LoadFile(file); // gets the root node
-    ros::Timer timer = nh.createTimer(ros::Duration(5), boost::bind(publish_poses, _1, boost::ref(br)));
+    timer = nh.createTimer(ros::Duration(1), boost::bind(publish_poses, _1, boost::ref(br)));
   } catch (YAML::BadFile) {
     ROS_ERROR("TF not found, searched at %s. The node is going to stop.", file.c_str());
     return 0;

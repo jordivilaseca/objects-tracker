@@ -28,7 +28,7 @@ std::vector<std::string> Recogniser::getObjects() const {
 uint Recogniser::getDSize(DTYPE d) {
 	switch(d) {
 		case COLOR:
-			return H_BINS*S_BINS;
+			return hBins*sBins;
 			break;
 
 		case SHAPE:
@@ -36,7 +36,7 @@ uint Recogniser::getDSize(DTYPE d) {
 			break;
 
 		case BOTH:
-			return 308 + H_BINS*S_BINS;
+			return 308 + hBins*sBins;
 			break;
 	}
 }
@@ -77,19 +77,19 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 
 	// Compute the descriptors for each cluster of the object.
 	for (int i = 0; i < clusters.size(); i++) {
-		pcl::PointIndices::Ptr regionIndicies = boost::make_shared<pcl::PointIndices>(clusters[i]);
+		pcl::PointIndices::Ptr regionIndices = boost::make_shared<pcl::PointIndices>(clusters[i]);
 		pcl::PointCloud<pcl::VFHSignature308>::Ptr pclDesc(new pcl::PointCloud<pcl::VFHSignature308>());
 		cv::Mat cvDesc;
 
 		// Compute VFH descriptors.
 		if(dtype == BOTH or dtype == SHAPE) {
-			vfh(cloud, normals, regionIndicies, tree, pclDesc);
+			vfh(cloud, normals, regionIndices, tree, pclDesc);
 		}
 
 		if (dtype == BOTH or dtype == COLOR) {
 			pcl::PointCloud<pcl::PointXYZRGBA>::Ptr region(new pcl::PointCloud<pcl::PointXYZRGBA>());
-			extractIndices(cloud, regionIndicies, region);
-	  		subPointCloud(region, *regionIndicies);
+			extractIndices(cloud, regionIndices, region);
+	  		subPointCloud(region, *regionIndices);
 
 			// Point cloud to image.
 			cv::Mat image;
@@ -105,8 +105,8 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 	        cv::waitKey(250);*/
 
 			// Compute color histogram.
-			float incPerValue = totalSumHisto/regionIndicies->indices.size();
-			calcHsvHist(image, mask, H_BINS, S_BINS, incPerValue, cvDesc);
+			float incPerValue = totalSumHisto/regionIndices->indices.size();
+			calcHsvHist(image, mask, hBins, sBins, incPerValue, cvDesc);
 		}
 
 		// Join descriptors.

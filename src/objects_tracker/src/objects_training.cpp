@@ -458,6 +458,8 @@ void parse_option(std::string option, std::string objects_path, std::string fram
       cout << "\t[4] Region Growing curvature angle = " << r.RGCurvature << endl;
       cout << "\t[5] Region Growing Number of neighbours = " << r.RGNumNeighbours << endl;
       cout << "\t[6] Region Growing Minimum cluster size = " << r.RGMinClusterSize << endl;
+      cout << "\t[7] Number H channel bins = " << r.hBins << endl;
+      cout << "\t[8] Number S channel bins = " << r.sBins << endl;
       cout << "Set option " << flush;
 
       std::string type;
@@ -485,6 +487,12 @@ void parse_option(std::string option, std::string objects_path, std::string fram
           break;
         case '6':
           r.RGMinClusterSize = stoi(value);
+          break;
+        case '7':
+          r.hBins = stoi(value);
+          break;
+        case '8':
+          r.sBins = stoi(value);
           break;
       }
       break;

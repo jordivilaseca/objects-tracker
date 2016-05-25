@@ -25,6 +25,8 @@ public:
 	float RGCurvature = 1.0;
 	int RGNumNeighbours = 40;
 	int RGMinClusterSize = 50;
+	int hBins = 15;
+	int sBins = 18;
 	
 	Recogniser(DTYPE d = DTYPE::BOTH);
 	Recogniser(cv::DescriptorMatcher *matcher, DTYPE d = DTYPE::BOTH);
@@ -38,8 +40,6 @@ public:
 	std::string predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &object, const pcl::PointIndices &indices) const;
 
 private:
-	const int H_BINS = 15;
-	const int S_BINS = 18;
 	const float totalSumHisto = 500;
 
 	const std::string MODEL_NAME = "model.yml";
