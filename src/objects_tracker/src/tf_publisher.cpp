@@ -19,7 +19,7 @@ void publish_poses(const ros::TimerEvent&, tf::TransformBroadcaster &br) {
 
     transform.setOrigin(tf::Vector3(pos[0], pos[1], pos[2]));
     transform.setRotation(tf::Quaternion(quat[0], quat[1], quat[2], quat[3]));
-    br.sendTransform(tf::StampedTransform(transform.inverse(), ros::Time::now(), par["parent_frame"].as<std::string>(), cam.as<string>()));
+    br.sendTransform(tf::StampedTransform(transform.inverse(), ros::Time::now(), par["parent_frame"].as<std::string>(), par["frame"].as<std::string>()));
   }
 }
 

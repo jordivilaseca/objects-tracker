@@ -1,9 +1,11 @@
 <launch>
   <machine name="inhands" address="192.168.2.245" env-loader="~/inhands_ws/scripts/ssh_env.bash" user="ros" password="$(env INHANDS_PSW)"/>
 
-  <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.335 2.796 0.82 0 0 0 1 base_link cams_pose 1000" />
+  <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.335 2.796 0.82 0 0 0 1 world cams_pose 1000" />
 
   <node pkg="objects_tracker" name="tf_publisher" type="tf_publisher" />
   <node machine="inhands" pkg="objects_tracker" name="point_cloud" type="point_cloud" />
   <node machine="inhands" pkg="objects_tracker" name="extract_plane" type="extract_plane" />
+  <node pkg="objects_tracker" name="objects_recognition" type="objects_recognition" />
+  <node machine="inhands" pkg="objects_tracker" name="objects_to_rviz" type="objects_to_rviz" />
 </launch>

@@ -19,19 +19,26 @@ class Recogniser
 public:
 	enum DTYPE {COLOR, SHAPE, BOTH};
 
-	int clustersPerObject = 5;
+	int clustersPerObject = 10;
 	float normalEstimationDist = 0.03;
 	float RGAngle = 5.0;
 	float RGCurvature = 1.0;
 	int RGNumNeighbours = 40;
 	int RGMinClusterSize = 50;
-	int hBins = 15;
-	int sBins = 18;
+	float totalSumHisto = 500;
 	
 	Recogniser(DTYPE d = DTYPE::BOTH);
 	Recogniser(cv::DescriptorMatcher *matcher, DTYPE d = DTYPE::BOTH);
 	~Recogniser();
+	void computeAll();
+	void computeAllDescriptors();
 	void setDescriptor(DTYPE d);
+	uint getHBins();
+	uint getSBins();
+	void setHBins(uint bins);
+	void setSBins(uint bins);
+	std::vector<std::string> getTrainingNames();
+
 	void computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &indices, cv::Mat &descriptors) const;
 	void addObjects(const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<std::string> &objectsResults, const std::vector<pcl::PointIndices> &objectsIndices);
 	void computeModel();
@@ -40,8 +47,6 @@ public:
 	std::string predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &object, const pcl::PointIndices &indices) const;
 
 private:
-	const float totalSumHisto = 500;
-
 	const std::string MODEL_NAME = "model.yml";
 	const std::string MATCHER_NAME = "matcher.yml";
 	const std::string NAMES_NAME = "names";
@@ -55,6 +60,10 @@ private:
 	cv::Mat vocabulary;
 	DTYPE dtype;
 	uint dSize;
+	int hBins = 13;
+	int sBins = 6;
+
+	std::vector<cv::Mat> objectDescriptors;
 
 	cv::DescriptorMatcher *matcher;
 	cv::Ptr<cv::ml::SVM> model;

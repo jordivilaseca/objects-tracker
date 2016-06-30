@@ -89,7 +89,7 @@ double triangleArea(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, cons
 	double dpq = sqrt(pq[0]*pq[0] + pq[1]*pq[1] + pq[2]*pq[2]);
 	double dpr = sqrt(pr[0]*pr[0] + pr[1]*pr[1] + pr[2]*pr[2]);
 
-	return dpq*dpr/2.0;
+	return fabs(dpq*dpr/2.0);
 }
 
 /**

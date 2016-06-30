@@ -58,6 +58,28 @@ void Recogniser::setDescriptor(DTYPE d) {
 	dSize = getDSize(d);
 }
 
+uint Recogniser::getHBins() {
+	return hBins;
+}
+
+uint Recogniser::getSBins() {
+	return sBins;
+}
+
+std::vector<std::string> Recogniser::getTrainingNames() {
+	return objectsNames;
+}
+
+void Recogniser::setHBins(uint bins) {
+	hBins = bins;
+	this->setDescriptor(dtype);
+}
+
+void Recogniser::setSBins(uint bins) {
+	sBins = bins;
+	this->setDescriptor(dtype);
+}
+
 void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &indices, cv::Mat &descriptors) const {
 	// Estimate normals.
 	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
@@ -127,16 +149,13 @@ void Recogniser::addObjects(const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>
 	this->objects = objects;
 	this->objectsResults = objectsResults;
 	this->objectsIndices = objectsIndices;
+	this->objectsNames = this->getObjects();
 }
 
-void Recogniser::computeModel() {
-	assert(objects.size() > 0);
-
-	objectsNames = getObjects();
-	
+void Recogniser::computeAllDescriptors() {
 	// Compute descriptors
 	std::cout << "Computing objects descriptors... " << std::flush;
-	std::vector<cv::Mat> objectDescriptors; // objectDescriptors[i][j] = descriptor of object i, cluster j.
+	objectDescriptors = std::vector<cv::Mat>(); // objectDescriptors[i][j] = descriptor of object i, cluster j.
 	for (int i = 0; i < objects.size(); i++) {
 		cv::Mat currentDescriptors;
 		computeDescriptors(objects[i], objectsIndices[i], currentDescriptors);
@@ -146,7 +165,14 @@ void Recogniser::computeModel() {
 
 	assert(objectDescriptors.size() > 0);
 	assert(objectDescriptors[0].cols > 0);
+}
 
+void Recogniser::computeAll() {
+	computeAllDescriptors();
+	computeModel();
+}
+
+void Recogniser::computeModel() {
 	// Copy descriptors to Mat.
 	cv::Mat descriptors;
 	cv::vconcat(objectDescriptors, descriptors);
@@ -195,13 +221,6 @@ void Recogniser::computeModel() {
 	cv::Ptr<cv::ml::TrainData> tdata = cv::ml::TrainData::create(modelDescriptors, cv::ml::ROW_SAMPLE, responses);
 	model->trainAuto(tdata,5);
 	std::cout << "ended" << std::endl;
-
-	// cv::Mat outputs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
-	// cv::Mat probs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
-	// model->predictProb(descriptors.row(0), outputs, probs);
-	// std::cout << std::endl << outputs << std::endl << probs << std::endl;
-	// std::cout << "asdf " << (int) outputs.at<int>(0) << std::endl;
-
 }
 
 void Recogniser::read(const std::string &path) {
@@ -216,6 +235,8 @@ void Recogniser::read(const std::string &path) {
 	cv::FileStorage d_fs(path + "/" + DESCRIPTOR_NAME, cv::FileStorage::READ);
 	int d;
     d_fs["Descriptor"] >> d;
+    d_fs["HBins"] >> hBins;
+    d_fs["SBins"] >> sBins;
     d_fs.release();
     this->setDescriptor( static_cast<DTYPE>(d));
     // std::cout << "dtype " << d << " " << path + "/" + DESCRIPTOR_NAME << std::endl;
@@ -236,6 +257,8 @@ void Recogniser::write(const std::string &path) const {
 
     cv::FileStorage d_fs(path + "/" + DESCRIPTOR_NAME, cv::FileStorage::WRITE);
     d_fs << "Descriptor" << (int) dtype;
+    d_fs << "HBins" << (int) hBins;
+    d_fs << "SBins" << (int) sBins;
     d_fs.release();
 }
 
@@ -267,38 +290,6 @@ std::string Recogniser::predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &o
 	cv::Mat probs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
 	int index = (int) model->predict(modelDescriptor, outputs);
 	// std::cout << modelDescriptor << std::endl << outputs << std::endl << probs << std::endl;
-	// std::cout << "asdf " << (int) outputs.at<int>(0) << std::endl;
+	// std::cout << "asdf " << (int) outputs.at<int>(0) << " " << objectsNames.size() << std::endl;
 	return objectsNames[(int) outputs.at<float>(0)];
-
-	/*int N=12;
-	cv::Ptr<cv::ml::NormalBayesClassifier> nb = cv::ml::NormalBayesClassifier::create();
-	cv::Mat_<float> X(N,4);
-    X << 1,2,3,4,  1,2,3,4,   1,2,3,4,    1,2,3,4,
-         5,5,5,5,  5,5,5,5,   5,5,5,5,    5,5,5,5,
-         4,3,2,1,  4,3,2,1,   4,3,2,1,    4,3,2,1;
-
-    std::cout << "Read X" << std::endl;
-    // labels:
-    cv::Mat_<int> Y(N,1);
-    Y << 0,0,0,0, 1,1,1,1, 2,2,2,2;
-    nb->train(X, cv::ml::ROW_SAMPLE, Y);
-
-    std::cout << "Single prediction" << std::endl;
-    // single prediction:
-    cv::Mat R1,P1;
-    for (int i=0; i<N; i++)
-    {
-        cv::Mat r,p;
-        nb->predictProb(X.row(i), r, p);
-        R1.push_back(r);
-        P1.push_back(p);
-    }
-    std::cout << R1 << P1 << std::endl;
-
-    std::cout << "bulk prediction" << std::endl;
-
-    // bulk prediction:
-    cv::Mat R2,P2;
-    nb->predictProb(X, R2, P2);
-    std::cout << R2 << P2 << std::endl;*/
 }

@@ -13,17 +13,18 @@
 #include <objects_tracker/utilities/utilities.hpp>
 #include <objects_tracker/utilities/bridge.hpp>
 
-#include <opencv2/core.hpp>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/highgui/highgui.hpp>
-
 using namespace std;
 
 YAML::Node config;
 
 void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id, ros::Publisher &pub_bb, ros::Publisher &pub_pc) {
   if (pub_bb.getNumSubscribers() > 0) {
+
+    // Remove old markers.
+    visualization_msgs::Marker deleteAll;
+    deleteAll.action = 3;
+    pub_bb.publish(deleteAll);
+
     // Publish bounding box as a square marker with small alpha.
     for (int i = 0; i < obs->objects.size(); i++) {
       objects_tracker::BoundingBox bb = obs->objects[i].bb;
@@ -32,10 +33,10 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
       computeColor(i, obs->objects.size(), col);
       double color[] = {col[0], col[1], col[2], 0.5};
 
-      geometry_msgs::Pose pose = obs->objects[i].bb.pose;
-      double pos[] = {pose.position.x, pose.position.y, pose.position.z};
+      geometry_msgs::PoseStamped pose = obs->objects[i].bb.pose;
+      double pos[] = {pose.pose.position.x, pose.pose.position.y, pose.pose.position.z};
       double scale[] = {bb.max_pt.x - bb.min_pt.x, bb.max_pt.y - bb.min_pt.y, bb.max_pt.z - bb.min_pt.z};
-      double orien[] = {pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w};
+      double orien[] = {pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w};
       pub_bb.publish(buildMarker(frame_id, 2*i, visualization_msgs::Marker::CUBE, pos, scale, color, orien));
       if(obs->objects[i].name != "") {
         pub_bb.publish(buildText(frame_id, 2*i+1, pos, 0.05, obs->objects[i].name));

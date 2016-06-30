@@ -134,7 +134,7 @@ void printList(const std::vector<T> &list) {
 	std::cout << std::endl;
 }
 
-void writeMetrics(const std::vector<std::vector<int>> &confMat, float accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &header,const std::string &path);
+void writeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<float> &accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader,const std::string &path);
 
 void quaternion2euler(const std::vector<float> q, std::vector<float> &e);
 

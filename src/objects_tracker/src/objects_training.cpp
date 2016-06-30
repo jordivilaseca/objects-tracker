@@ -149,74 +149,108 @@ void async_read(bool &newOption, std::string &option) {
   }
 }
 
-void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &objectsNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<pcl::PointIndices> &objectsIndices, std::vector<std::vector<int>> &confMat) {
+void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader, const std::vector<std::string> &testingNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &testingObjects, const std::vector<pcl::PointIndices> &testingIndices, std::vector<std::vector<int>> &confMat) {
   
-  int nelem = trainingHeader.size();
+  int ntraining = trainingHeader.size();
+  int ntesting = testingHeader.size();
 
-  confMat = std::vector<std::vector<int>>(nelem, std::vector<int>(nelem, 0));
+  confMat = std::vector<std::vector<int>>(ntesting, std::vector<int>(ntraining, 0));
 
-  for(int k = 0; k < objectsNames.size(); k++) {
+  // std::cout << "prefor" << std::endl;
+  for(int k = 0; k < testingNames.size(); k++) {
     // It contains [object, numPhotos]
 
-    std::string goodName = objectsNames[k];
-    
-    std::string name = r.predict(objects[k], objectsIndices[k]);
-  
-    // Find position in confusion matrix.
-    auto iti = std::find(trainingHeader.begin(), trainingHeader.end(), goodName);
-    int i = std::distance(trainingHeader.begin(), iti);
+    std::string goodName = testingNames[k];
 
-    // Update confusion matrix.
-    if(name == goodName) {
-      confMat[i][i] += 1;
-    } else {
-      auto itj = std::find(trainingHeader.begin(), trainingHeader.end(), name);
-      int j = std::distance(trainingHeader.begin(), itj);
-      confMat[i][j] += 1;
-    }
+    // std::cout << "prepredict" << std::endl;
+    
+    std::string name = r.predict(testingObjects[k], testingIndices[k]);
+  
+    // std::cout << "postpredict" << std::endl;
+    // Find position in confusion matrix.
+    auto iti = std::find(testingHeader.begin(), testingHeader.end(), goodName);
+    int i = std::distance(testingHeader.begin(), iti);
+
+    auto itj = std::find(trainingHeader.begin(), trainingHeader.end(), name);
+    int j = std::distance(trainingHeader.begin(), itj);
+
+    confMat[i][j] += 1;
+
+    // std::cout << "end" << std::endl;
   }
 }
 
-void computeMetrics(const std::vector<std::vector<int>> &confMat, float &accur, std::vector<float> &precision, std::vector<float> &recall, std::vector<float> &fmeasure) {
+// void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &objectsNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<pcl::PointIndices> &objectsIndices, std::vector<std::vector<int>> &confMat) {
+  
+//   int nelem = trainingHeader.size();
+
+//   confMat = std::vector<std::vector<int>>(nelem, std::vector<int>(nelem, 0));
+
+//   for(int k = 0; k < objectsNames.size(); k++) {
+//     // It contains [object, numPhotos]
+
+//     std::string goodName = objectsNames[k];
+    
+//     std::string name = r.predict(objects[k], objectsIndices[k]);
+  
+//     // Find position in confusion matrix.
+//     auto iti = std::find(trainingHeader.begin(), trainingHeader.end(), goodName);
+//     int i = std::distance(trainingHeader.begin(), iti);
+
+//     // Update confusion matrix.
+//     if(name == goodName) {
+//       confMat[i][i] += 1;
+//     } else {
+//       auto itj = std::find(trainingHeader.begin(), trainingHeader.end(), name);
+//       int j = std::distance(trainingHeader.begin(), itj);
+//       confMat[i][j] += 1;
+//     }
+//   }
+// }
+
+void computeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader, std::vector<float> &accur, std::vector<float> &precision, std::vector<float> &recall, std::vector<float> &fmeasure) {
+
+  assert(testingHeader.size() == confMat.size() and testingHeader.size() > 0);
+  assert(confMat[0].size() == trainingHeader.size());
   // Compute accuracy.
   int total = 0;
-  int correct = 0;
   for(int i = 0; i < confMat.size(); i++) {
-    for(int j = 0; j < confMat[0].size(); j++) {
-      if (i == j) correct += confMat[i][j];
+    for(int j = 0; j < confMat[i].size(); j++) {
       total += confMat[i][j];
     }
   }
-  accur = (float) correct / (float) total;
 
   // Compute precision.
-  precision = std::vector<float>(confMat.size());
-  for(int i = 0; i < confMat.size(); i++) {
-    int truePositive = confMat[i][i];
+  accur = std::vector<float>(trainingHeader.size(), 0.0);
+  precision = std::vector<float>(trainingHeader.size(), 0.0);
+  fmeasure = std::vector<float>(trainingHeader.size(), 0.0);
+  recall = std::vector<float>(trainingHeader.size(), 0.0);
+  for(int i = 0; i < testingHeader.size(); i++) {
+    std::string goodName = testingHeader[i];
+
+    auto itj = std::find(trainingHeader.begin(), trainingHeader.end(), goodName);
+    int j = std::distance(trainingHeader.begin(), itj);
+
+    int truePositive = confMat[i][j];
+
     int falsePositive = 0;
-    for(int j = 0; j < confMat[i].size(); j++) {
-      if(i != j) falsePositive += confMat[j][i];
+    for(int k = 0; k < testingHeader.size(); k++) {
+      if(i != k) falsePositive += confMat[k][j];
     }
-    precision[i] = (float) truePositive/((float) truePositive + (float) falsePositive);
-  }
 
-  // Compute recall.
-  recall = std::vector<float>(confMat.size());
-  for(int i = 0; i < confMat.size(); i++) {
-    int truePositive = confMat[i][i];
     int falseNegative = 0;
-    for(int j = 0; j < confMat[i].size(); j++) {
-      if( i != j) falseNegative += confMat[i][j];
+    for(int k = 0; k < trainingHeader.size(); k++) {
+      if(j != k) falseNegative += confMat[i][k];
     }
-    recall[i] = (float) truePositive/((float) truePositive + (float) falseNegative);
-  }
 
-  // Compute F measures.
-  fmeasure = std::vector<float>(confMat.size());
-  for(int i = 0; i < confMat.size(); i++) {
-    fmeasure[i] = 2.0*(precision[i]*recall[i])/(precision[i] + recall[i]);
+    int trueNegative = total - (truePositive + falsePositive + falseNegative);
+
+    accur[j] = ((float) truePositive + (float) trueNegative)/((float) total);
+    precision[j] = (float) truePositive/((float) truePositive + (float) falsePositive);
+    recall[j] = (float) truePositive/((float) truePositive + (float) falseNegative);
+    fmeasure[j] = 2.0*(precision[j]*recall[j])/(precision[j] + recall[j]);
   }
-} 
+}
 
 void readPointClouds(const std::string &path, std::vector<std::string> &objectsNames, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, std::vector<pcl::PointIndices> &objectsIndices) {
   
@@ -372,15 +406,15 @@ void parse_option(std::string option, std::string objects_path, std::string fram
       {
         // Read objects from disk.
         cout << "Reading objects point clouds..." << flush;
-        std::vector<std::string> objectsNames;
-        std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> objects;
-        std::vector<pcl::PointIndices> objectsIndices;
-        readPointClouds(training_path, objectsNames, objects, objectsIndices);
+        std::vector<std::string> trainingNames;
+        std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> trainingObjects;
+        std::vector<pcl::PointIndices> trainingIndices;
+        readPointClouds(training_path, trainingNames, trainingObjects, trainingIndices);
         cout << "ended" << endl;
   
         // Train model and store it.
-        r.addObjects(objects, objectsNames, objectsIndices);
-        r.computeModel();
+        r.addObjects(trainingObjects, trainingNames, trainingIndices);
+        r.computeAll();
         r.write(training_path);
         break;
       }
@@ -396,33 +430,36 @@ void parse_option(std::string option, std::string objects_path, std::string fram
         if(option[0] == '4') {
           tryTraining(r);
         } else {
-          std::vector<std::string> objectsNames;
-          std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> objects;
-          std::vector<pcl::PointIndices> objectsIndices;
+          std::vector<std::string> testingNames;
+          std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> testingObjects;
+          std::vector<pcl::PointIndices> testingIndices;
 
           std::cout << "Reading point clouds... " << std::flush;
-          readPointClouds(testing_path, objectsNames, objects, objectsIndices);
+          readPointClouds(testing_path, testingNames, testingObjects, testingIndices);
           std::cout << "ended" << std::endl;
 
-          std::vector<std::string> header = computeHeader(objectsNames);
+          std::vector<std::string> trainingHeader = r.getTrainingNames();
+          for(std::string s : trainingHeader) std::cout << s << " ";
+          std::cout << endl;
+          std::vector<std::string> testingHeader = computeHeader(testingNames);
           std::vector<std::vector<int>> confMat;
 
           std::cout << "Computing confusion matrix... " << std::flush;
-          computeConfusionMatrix(r, header, objectsNames, objects, objectsIndices, confMat);
+          computeConfusionMatrix(r, trainingHeader, testingHeader, testingNames, testingObjects, testingIndices, confMat);
           std::cout << "ended" << std::endl;
 
           std::cout << "Computing metrics... " << std::flush;
-          float accur;
           std::vector<float> precision;
           std::vector<float> recall;
           std::vector<float> fmeasure;
-          computeMetrics(confMat, accur, precision, recall, fmeasure);
+          std::vector<float> accur;
+          computeMetrics(confMat, trainingHeader, testingHeader, accur, precision, recall, fmeasure);
           std::cout << "ended" << std::endl;
 
           cout << "Enter a file name: ";
           std::string name;
           getline(cin, name);
-          writeMetrics(confMat, accur, precision, recall, fmeasure, header, objects_path + "/" + name + ".csv");
+          writeMetrics(confMat, accur, precision, recall, fmeasure, trainingHeader, testingHeader, objects_path + "/" + name + ".csv");
         }
         break;
       }
@@ -458,8 +495,8 @@ void parse_option(std::string option, std::string objects_path, std::string fram
       cout << "\t[4] Region Growing curvature angle = " << r.RGCurvature << endl;
       cout << "\t[5] Region Growing Number of neighbours = " << r.RGNumNeighbours << endl;
       cout << "\t[6] Region Growing Minimum cluster size = " << r.RGMinClusterSize << endl;
-      cout << "\t[7] Number H channel bins = " << r.hBins << endl;
-      cout << "\t[8] Number S channel bins = " << r.sBins << endl;
+      cout << "\t[7] Number H channel bins = " << r.getHBins() << endl;
+      cout << "\t[8] Number S channel bins = " << r.getSBins() << endl;
       cout << "Set option " << flush;
 
       std::string type;
@@ -489,10 +526,10 @@ void parse_option(std::string option, std::string objects_path, std::string fram
           r.RGMinClusterSize = stoi(value);
           break;
         case '7':
-          r.hBins = stoi(value);
+          r.setHBins(stoi(value));
           break;
         case '8':
-          r.sBins = stoi(value);
+          r.setSBins(stoi(value));
           break;
       }
       break;

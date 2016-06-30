@@ -46,18 +46,18 @@ void computeColor(int i, int n, std::vector<double> &color) {
 	}
 }
 
-void writeMetrics(const std::vector<std::vector<int>> &confMat, float accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &header,const std::string &path) {
+void writeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<float> &accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader,const std::string &path) {
 	std::ofstream fs;
 	fs.open(path);
 
 	// Print confusion matrix
-	for(int i = 0; i < confMat.size(); i++) {
-		fs << ", " << header[i];
+	for(int i = 0; i < trainingHeader.size(); i++) {
+		fs << ", " << trainingHeader[i];
 	}
 	fs << ",,Average\n";
-	for(int i = 0; i < confMat.size(); i++) {
-		fs << header[i];
-		for(int j = 0; j < confMat.size(); j++) {
+	for(int i = 0; i < testingHeader.size(); i++) {
+		fs << testingHeader[i];
+		for(int j = 0; j < trainingHeader.size(); j++) {
 		  fs << ", " << confMat[i][j];
 		}
 		fs << "\n";
@@ -67,8 +67,8 @@ void writeMetrics(const std::vector<std::vector<int>> &confMat, float accur,cons
 
 	// Print accuracy.
 	fs << "Accuracy,";
-	for(int i = 0; i < confMat.size(); i++) fs << ",";
-	fs << "," << accur << "\n";
+	for(int i = 0; i < accur.size(); i++) fs << accur[i] << ",";
+	fs << "," << sum(accur) / (float) accur.size() << "\n";
 
 	// Print precision.
 	fs << "Precision,";
