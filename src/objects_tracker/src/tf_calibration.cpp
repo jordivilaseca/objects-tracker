@@ -80,13 +80,11 @@ int main(int argc, char **argv)
       t.qz /= iter;
       t.qw /= iter;
 
-      config[argv[1]]["x"] = t.x;
-      config[argv[1]]["y"] = t.y;
-      config[argv[1]]["z"] = t.z;
-      config[argv[1]]["qx"] = t.qx;
-      config[argv[1]]["qy"] = t.qy;
-      config[argv[1]]["qz"] = t.qz;
-      config[argv[1]]["qw"] = t.qw;
+      std::vector<float> pos = {t.x, t.y, t.z};
+      std::vector<float> quat = {t.qx, t.qy, t.qz, t.qw};
+      config[argv[1]]["pos"] = pos;
+      config[argv[1]]["quat"] = quat;
+      config[argv[1]]["parent_frame"] = "cams_pose";
 
       std::ofstream fout(file);
       fout << config << endl;

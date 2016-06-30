@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+
 project(objects_tracker)
 
 set(CMAKE_CXX_FLAGS "-std=c++0x ${CMAKE_CXX_FLAGS}")
@@ -202,10 +205,13 @@ include_directories(
 ## My packages ##
 #################
 
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
 #find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(HDF5)
+find_package(FLANN 1.8)
 
 # OPENMP
 if(OPENMP_FOUND)
@@ -219,12 +225,18 @@ IF(CMAKE_COMPILER_IS_GNUCC)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O2")
 ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
-# PCL and CATKIN
-include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} )
-
 # PCL
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+
+# # FLANN
+# link_directories(${FLANN_LIBRARY_DIRS})
+# if(FLANN_CFLAGS)
+#  add_definitions(${FLANN_CFLAGS})
+# endif(FLANN_CFLAGS) 
+
+# PCL, HDF5 and CATKIN
+include_directories( include ${catkin_INCLUDE_DIRS}  ${PCL_INCLUDE_DIRS} ${EIGEN_INCLUDE_DIR} ${HDF5_INCLUDE_DIR} ${FLANN_INCLUDE_DIRS})
 
 # point_cloud node
 add_executable(point_cloud src/point_cloud.cpp)
@@ -243,9 +255,22 @@ target_link_libraries(pcl ${catkin_LIBRARIES} ${PCL_LIBRARIES} utilities)
 add_library(ros src/utilities/ros.cpp)
 target_link_libraries(ros ${catkin_LIBRARIES} utilities)
 
+ # utilities bridge
+ add_library(bridge src/utilities/bridge.cpp)
+ target_link_libraries(bridge ${PCL_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+ 
+ # utilities opencv
+ add_library(opencv src/utilities/opencv.cpp)
+ target_link_libraries(opencv ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+ 
+ # utilities recognition
+ add_library(recognition src/utilities/recognition.cpp)
+ target_link_libraries(recognition ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} opencv bridge pcl)
+ add_dependencies(recognition opencv bridge pcl)
+
 # extract_plane node
 add_executable(extract_plane src/extract_plane.cpp)
-target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros)
+target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} -lyaml-cpp pcl ros)
 add_dependencies(extract_plane opencv_nonfree249d.lib)
 
 # tf_calibration node
@@ -258,9 +283,22 @@ target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-c
 
 # objects_to_rviz node
 add_executable(objects_to_rviz src/objects_to_rviz.cpp)
-target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} -lyaml-cpp ros)
+target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${OPENCV_LIB} -lyaml-cpp ros)
+ 
+ # objects_training node
+ add_executable(objects_training src/objects_training.cpp)
+ target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
+ add_dependencies(objects_to_rviz ros utilities pcl recognition)
+ 
+ # objects_recognition node
+ add_executable(objects_recognition src/objects_recognition.cpp)
+ target_link_libraries(objects_recognition ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} -lyaml-cpp ros utilities pcl recognition)
+ 
+ # compute_graphics node
+ add_executable(compute_graphics src/compute_graphics.cpp)
+ target_link_libraries(compute_graphics ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${HDF5_hdf5_LIBRARY} utilities recognition)
 
-# example cuda compiler
+# # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)
 # target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl ros ${CUDA_LIBRARIES})
 # add_dependencies(extract_plane opencv_nonfree249d.lib utilities)

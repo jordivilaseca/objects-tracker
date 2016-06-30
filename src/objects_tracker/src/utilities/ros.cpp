@@ -1,6 +1,6 @@
 #include <objects_tracker/utilities/ros.hpp>
 
-visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[], double ori[]) {
+visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[], double ori[], double points[][3]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
 	marker.header.stamp = ros::Time();
@@ -22,6 +22,41 @@ visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t ty
 	marker.color.g = color[1];
 	marker.color.b = color[2];
 	marker.color.a = color[3]; // Don't forget to set the alpha!
+
+	if(sizeof(points) > 0) {
+		for(int i = 0; i < sizeof(points)/sizeof(points[0]); i++) {
+			geometry_msgs::Point p;
+			p.x = points[i][0];
+			p.y = points[i][1];
+			p.z = points[i][2];
+
+			marker.points.push_back(p);
+		}
+	}
+	return marker;
+}
+
+visualization_msgs::Marker buildText(std::string frame_id, int id, double pos[], double height, std::string text) {
+	visualization_msgs::Marker marker;
+	marker.header.frame_id = frame_id;
+	marker.header.stamp = ros::Time();
+	marker.ns = "my_namespace";
+	marker.id = id;
+	marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+	marker.action = visualization_msgs::Marker::ADD;
+	marker.pose.orientation.x = 0.0;
+	marker.pose.orientation.y = 0.0;
+	marker.pose.orientation.z = 0.0;
+	marker.pose.orientation.w = 0.0;
+	marker.pose.position.x = pos[0];
+	marker.pose.position.y = pos[1];
+	marker.pose.position.z = pos[2];
+	marker.scale.z = height;
+	marker.color.r = 1.0;
+	marker.color.g = 1.0;
+	marker.color.b = 1.0;
+	marker.color.a = 1.0; // Don't forget to set the alpha!
+	marker.text = text;
 	return marker;
 }
 

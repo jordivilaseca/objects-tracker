@@ -44,6 +44,7 @@ qtcreator-*
 .#*
 
 src/beginner_tutorials
+*.csv
 
 # Catkin custom files
 CMakeCache.txt

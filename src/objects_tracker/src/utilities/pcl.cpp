@@ -89,7 +89,7 @@ double triangleArea(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, cons
 	double dpq = sqrt(pq[0]*pq[0] + pq[1]*pq[1] + pq[2]*pq[2]);
 	double dpr = sqrt(pr[0]*pr[0] + pr[1]*pr[1] + pr[2]*pr[2]);
 
-	return dpq*dpr/2.0;
+	return fabs(dpq*dpr/2.0);
 }
 
 /**
@@ -122,8 +122,16 @@ double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZR
 	return angle*57.2957795;
 }
 
-double vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
-	double x1,y1,z1,x2,y2,z2;
+float vectAngle3d(float x1, float y1, float z1, float x2, float y2, float z2) {
+	float dot = x1*x2 + y1*y2 + z1*z2;
+	float lenSq1 = x1*x1 + y1*y1 + z1*z1;
+	float lenSq2 = x2*x2 + y2*y2 + z2*z2;
+	float angle = acos(dot/sqrt(lenSq1 * lenSq2));
+	return angle*57.2957795;
+}
+
+float vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
+	float x1,y1,z1,x2,y2,z2;
 
 	x1 = q.x - p.x;
 	y1 = q.y - p.y;
@@ -133,11 +141,7 @@ double vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const
 	y2 = r.y - p.y;
 	z2 = r.z - p.z;
 
-	double dot = x1*x2 + y1*y2 + z1*z2;
-	double lenSq1 = x1*x1 + y1*y1 + z1*z1;
-	double lenSq2 = x2*x2 + y2*y2 + z2*z2;
-	double angle = acos(dot/sqrt(lenSq1 * lenSq2));
-	return angle*57.2957795;
+	return vectAngle3d(x1, y1, z1, x2, y2, z2);
 }
 
 
@@ -175,7 +179,18 @@ int orient3d(const pcl::PointXYZRGBA &pa, const pcl::PointXYZRGBA &pb, const pcl
 	return 0;
 }
 
+void correctNormal(const float origin[], const pcl::PointXYZRGBA &p, pcl::ModelCoefficients &coef) {
+	float originVect[] = {origin[0] - p.x, origin[1] - p.y, origin[2] - p.z};
+	float angle = vectAngle3d(originVect[0], originVect[1], originVect[2], coef.values[0], coef.values[1], coef.values[2]);
 
+	if (angle > 90.0) {
+		coef.values[0] = -coef.values[0];
+		coef.values[1] = -coef.values[1];
+		coef.values[2] = -coef.values[2];
+		coef.values[3] = -coef.values[3];
+		std::cout << "Normal corrected, angle " << angle << std::endl;
+	}
+}
 
 /***********************
     Polygon functions
@@ -413,6 +428,37 @@ void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, c
 	chull.getHullPointIndices(hullIndices); 
 }
 
+void regionGrowing(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::IndicesPtr &indices, const pcl::PointCloud<pcl::Normal>::Ptr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, int nNeigh, int minClusSize, std::vector<pcl::PointIndices> &clusters) {
+	pcl::RegionGrowing<pcl::PointXYZRGBA, pcl::Normal> reg;
+	reg.setSearchMethod(tree);
+	reg.setNumberOfNeighbours(nNeigh);
+	reg.setMinClusterSize(minClusSize);
+	reg.setInputCloud(cloud);
+	reg.setIndices(indices);
+	reg.setInputNormals(normals);
+	reg.setSmoothnessThreshold(angleThresh);
+	reg.setCurvatureThreshold(curvatureThresh);
+
+	clusters = std::vector<pcl::PointIndices>();
+	reg.extract (clusters);
+}
+
+void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
+	// Creating the KdTree object for the search method of the extraction
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
+	tree->setInputCloud(cloud);
+
+	clusterIndices = std::vector<pcl::PointIndices>();
+
+	pcl::EuclideanClusterExtraction<pcl::PointXYZRGBA> ec;
+	ec.setClusterTolerance(tolerance);	// 1cm
+	ec.setMinClusterSize(minSize);
+	ec.setMaxClusterSize(MAX_CLUSTER_POINTS);
+	ec.setSearchMethod(tree);
+	ec.setInputCloud(cloud);
+	ec.extract(clusterIndices);
+}
+
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
@@ -430,6 +476,115 @@ void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const
 	ec.extract(clusterIndices);
 }
 
+void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh) {
+	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne;
+	ne.setInputCloud(cloud);
+
+	// Create an empty kdtree representation, and pass it to the normal estimation object.
+	// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+	pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>());
+	//tree->setInputCloud(cloud);
+	ne.setSearchMethod(tree);
+
+	normals = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
+	ne.setRadiusSearch(thresh);
+	ne.compute(*normals);
+}
+
+void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh) {
+	pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
+	ne.setInputCloud(cloud);
+
+	// Create an empty kdtree representation, and pass it to the normal estimation object.
+	// Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGBA>());
+	tree->setInputCloud(cloud);
+	ne.setSearchMethod(tree);
+
+	normals = pcl::PointCloud<pcl::Normal>::Ptr(new pcl::PointCloud<pcl::Normal>());
+	ne.setRadiusSearch(thresh);
+	ne.compute(*normals);
+}
+
+void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, const pcl::PointIndices::ConstPtr &inliers, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
+	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
+	extract.setInputCloud(input);
+	extract.setIndices(inliers);
+	extract.setNegative(false);
+	extract.setKeepOrganized(true);
+	extract.filter(*cloud);
+}
+
+/* It returns the indices of cloud in a new pointcloud that is organized and the size of the object */
+void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointIndices &indices) {
+	pair<int,int> mi, ma;
+
+	int width = cloud->width;
+	int height = cloud->height;
+
+	// Get minimum and maximum point. (in 2D)
+	mi.first = ma.first = indices.indices[0] % width;
+	mi.second = ma.second = (int) indices.indices[0] / width;
+	for (int i : indices.indices) {
+		int x = i % width;
+		int y = (int) i/width;
+
+		mi.first = min(mi.first, x);
+		ma.first = max(ma.first, x);
+		mi.second = min(mi.second, y);
+		ma.second = max(ma.second, y);
+	}
+
+	// Move the object to the new position.
+	int newWidth = ma.first - mi.first + 1;
+	int newHeight = ma.second - mi.second + 1;
+	for(int i = 0; i < newHeight; i++) {
+		for(int j = 0; j < newWidth; j++) {
+			cloud->points[j + i*newWidth] = cloud->points[mi.first + j + (mi.second + i)*width];
+		}
+	}
+
+	// Update indices.
+	for(int &i : indices.indices) {
+		int x = i % width;
+		int y = (int) i/width;
+		i = (x - mi.first) + (y - mi.second)*newWidth;
+	}
+
+	// Update cloud parameters.
+	cloud->width = newWidth;
+	cloud->height = newHeight;
+	cloud->points.resize(newWidth*newHeight);
+}
+
+void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr &input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output) {
+	output = pcl::PointIndices::Ptr(new pcl::PointIndices());
+	output->indices.resize(input->indices.size());
+
+	std::vector<float> n1 = planeCoefficients.values;
+
+	int nr_p = 0;
+	for(int i : input->indices) {
+		pcl::Normal n2 = cloud->points[i];
+
+		float angle = vectAngle3d(n1[0], n1[1], n1[2], n2.normal_x, n2.normal_y, n2.normal_z);
+		//std::cout << angle << " " << endl;
+		if(angleThresh >= angle or 180.0 - angle <= angleThresh) output->indices[nr_p++] = i;
+	}
+
+	output->indices.resize(nr_p);
+}
+
+void removeNans(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud,  pcl::PointIndices::Ptr &input) {
+	std::vector<int> aux(input->indices);
+
+	int nr_p = 0;
+	for(int i : aux) {
+		if (!isnan(cloud->points[i].x)) input->indices[nr_p++] = i;
+	}
+	input->indices.resize(nr_p);
+}
+
 /***********************
     Plane functions
 ***********************/
@@ -445,6 +600,8 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 
 	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
 	for(size_t i = 0; i < totalPoints; i++) {
+
+		if (isnan(cloud->points[i].x)) continue;
 		// Calculate the distance from the point to the plane normal as the dot product
 		// D =(P-A).N/|N|
 		Eigen::Vector4f pt(cloud->points[i].x,
@@ -474,4 +631,70 @@ void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, p
 	proj.setInputCloud(cloud);
 	proj.setModelCoefficients(modelCoef);
 	proj.filter(*projCloud);
+}
+
+/***********************
+       Descriptors
+***********************/
+
+void vfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::PointIndices::Ptr &indices, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptor) {
+	pcl::VFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> vfh;
+	vfh.setInputCloud(object);
+	vfh.setInputNormals(normals);
+	vfh.setIndices(indices);
+	vfh.setSearchMethod(tree);
+	// Optionally, we can normalize the bins of the resulting histogram,
+	// using the total number of points.
+	vfh.setNormalizeBins(true);
+	vfh.setFillSizeComponent(true);
+	// Also, we can normalize the SDC with the maximum size found between
+	// the centroid and any of the cluster's points.
+	vfh.setNormalizeDistance(true);
+ 
+	vfh.compute(*descriptor);
+}
+
+void ourcvfh(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGB>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
+	// OUR-CVFH estimation object.
+	pcl::OURCVFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> ourcvfh;
+	ourcvfh.setInputCloud(object);
+	ourcvfh.setInputNormals(normals);
+	ourcvfh.setSearchMethod(tree);
+	ourcvfh.setEPSAngleThreshold(angleThresh); // 5 degrees.
+	ourcvfh.setCurvatureThreshold(curvatureThresh);
+	ourcvfh.setNormalizeBins(scaleInvariant);
+	ourcvfh.setAxisRatio(1);
+	ourcvfh.compute(*descriptors);
+}
+
+void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
+	// CVFH estimation object.
+	pcl::CVFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> cvfh;
+	cvfh.setInputCloud(object);
+	cvfh.setInputNormals(normals);
+	cvfh.setSearchMethod(tree);
+	// Set the maximum allowable deviation of the normals,
+	// for the region segmentation step.
+	cvfh.setEPSAngleThreshold(angleThresh); // 5 degrees.
+	// Set the curvature threshold (maximum disparity between curvatures),
+	// for the region segmentation step.
+	cvfh.setCurvatureThreshold(curvatureThresh);
+	// Set to true to normalize the bins of the resulting histogram,
+	// using the total number of points. Note: enabling it will make CVFH
+	// invariant to scale just like VFH, but the authors encourage the opposite.
+	cvfh.setNormalizeBins(scaleInvariant);
+ 
+	cvfh.compute(*descriptors);
+}
+
+void shot352(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, float radius, pcl::PointCloud<pcl::SHOT352>::Ptr &descriptors) {
+	// SHOT estimation object.
+	pcl::SHOTEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::SHOT352> shot;
+	shot.setInputCloud(object);
+	shot.setInputNormals(normals);
+	// The radius that defines which of the keypoint's neighbors are described.
+	// If too large, there may be clutter, and if too small, not enough points may be found.
+	shot.setRadiusSearch(radius);
+ 
+	shot.compute(*descriptors);
 }

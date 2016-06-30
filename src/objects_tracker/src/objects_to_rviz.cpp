@@ -11,6 +11,7 @@
 
 #include <objects_tracker/utilities/ros.hpp>
 #include <objects_tracker/utilities/utilities.hpp>
+#include <objects_tracker/utilities/bridge.hpp>
 
 using namespace std;
 
@@ -18,6 +19,12 @@ YAML::Node config;
 
 void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id, ros::Publisher &pub_bb, ros::Publisher &pub_pc) {
   if (pub_bb.getNumSubscribers() > 0) {
+
+    // Remove old markers.
+    visualization_msgs::Marker deleteAll;
+    deleteAll.action = 3;
+    pub_bb.publish(deleteAll);
+
     // Publish bounding box as a square marker with small alpha.
     for (int i = 0; i < obs->objects.size(); i++) {
       objects_tracker::BoundingBox bb = obs->objects[i].bb;
@@ -26,11 +33,14 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
       computeColor(i, obs->objects.size(), col);
       double color[] = {col[0], col[1], col[2], 0.5};
 
-      geometry_msgs::Pose pose = obs->objects[i].bb.pose;
-      double pos[] = {pose.position.x, pose.position.y, pose.position.z};
+      geometry_msgs::PoseStamped pose = obs->objects[i].bb.pose;
+      double pos[] = {pose.pose.position.x, pose.pose.position.y, pose.pose.position.z};
       double scale[] = {bb.max_pt.x - bb.min_pt.x, bb.max_pt.y - bb.min_pt.y, bb.max_pt.z - bb.min_pt.z};
-      double orien[] = {pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w};
-      pub_bb.publish(buildMarker(frame_id, i, visualization_msgs::Marker::CUBE, pos, scale, color, orien));
+      double orien[] = {pose.pose.orientation.x, pose.pose.orientation.y, pose.pose.orientation.z, pose.pose.orientation.w};
+      pub_bb.publish(buildMarker(frame_id, 2*i, visualization_msgs::Marker::CUBE, pos, scale, color, orien));
+      if(obs->objects[i].name != "") {
+        pub_bb.publish(buildText(frame_id, 2*i+1, pos, 0.05, obs->objects[i].name));
+      }
     }
   }
   if (pub_pc.getNumSubscribers() > 0) {
@@ -39,9 +49,9 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
     for (int i = 0; i < obs->objects.size(); i++) {
       pcl::PointCloud<pcl::PointXYZRGBA> aux = pcl::PointCloud<pcl::PointXYZRGBA>();
-      pcl::fromROSMsg (obs->objects[i].point_cloud, aux);
+      pcl::fromROSMsg(obs->objects[i].point_cloud, aux);
       
-      *cloud += aux;
+      *cloud += pcl::PointCloud<pcl::PointXYZRGBA>(aux, obs->objects[i].indices);
     }
     cloud->header.frame_id = frame_id;
     pub_pc.publish(cloud);
@@ -64,8 +74,8 @@ int main(int argc, char **argv)
     return 0;
   }
 
-  std::vector<ros::Subscriber> subs(config.size());
-  std::vector<ros::Publisher> pubs_bb(config.size());
+  std::vector<ros::Subscriber> subs(config.size()*config.size());
+  std::vector<ros::Publisher> pubs_bb(config.size()*config.size());
   std::vector<ros::Publisher> pubs_pc(config.size());
 
   int i = 0;
@@ -73,10 +83,13 @@ int main(int argc, char **argv)
     YAML::Node cam = itCam->first;
     YAML::Node par = itCam->second;
     std::string topic = "/" + cam.as<string>() + "/objects";
+    std::string namedTopic = "/" + cam.as<string>() + "/namedObjects";
 
-    pubs_bb[i] = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 1);
-    pubs_pc[i] = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(topic + "/pointcloud", 1);
-    subs[i] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[i]), boost::ref(pubs_pc[i])));
+    pubs_bb[2*i] = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 50);
+    pubs_bb[2*i+1] = nh.advertise<visualization_msgs::Marker>(namedTopic + "/boundingbox", 50);
+    pubs_pc[i] = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(topic + "/pointcloud", 50);
+    subs[i*2] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[2*i]), boost::ref(pubs_pc[i])));
+    subs[i*2+1] = nh.subscribe<objects_tracker::Objects>(namedTopic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[2*i+1]), boost::ref(pubs_pc[i])));
   }
 
   ros::spin();

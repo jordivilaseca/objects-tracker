@@ -45,3 +45,43 @@ void computeColor(int i, int n, std::vector<double> &color) {
 			break;
 	}
 }
+
+void writeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<float> &accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader,const std::string &path) {
+	std::ofstream fs;
+	fs.open(path);
+
+	// Print confusion matrix
+	for(int i = 0; i < trainingHeader.size(); i++) {
+		fs << ", " << trainingHeader[i];
+	}
+	fs << ",,Average\n";
+	for(int i = 0; i < testingHeader.size(); i++) {
+		fs << testingHeader[i];
+		for(int j = 0; j < trainingHeader.size(); j++) {
+		  fs << ", " << confMat[i][j];
+		}
+		fs << "\n";
+	}
+
+	fs << "\n";
+
+	// Print accuracy.
+	fs << "Accuracy,";
+	for(int i = 0; i < accur.size(); i++) fs << accur[i] << ",";
+	fs << "," << sum(accur) / (float) accur.size() << "\n";
+
+	// Print precision.
+	fs << "Precision,";
+	for(int i = 0; i < precision.size(); i++) fs << precision[i] << ",";
+	fs << "," << sum(precision) / (float) precision.size() << "\n";
+
+	// Print recall.
+	fs << "Recall,";
+	for(int i = 0; i < recall.size(); i++) fs << recall[i] << ",";
+	fs << "," << sum(recall) / (float) recall.size() << "\n";
+
+	// Print fmeasure.
+	fs << "F-measure,";
+	for(int i = 0; i < fmeasure.size(); i++) fs << fmeasure[i] << ",";
+	fs << "," << sum(fmeasure) / (float) fmeasure.size() << "\n";
+}

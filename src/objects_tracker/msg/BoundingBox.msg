@@ -1,3 +1,3 @@
 geometry_msgs/Point min_pt
 geometry_msgs/Point max_pt
-geometry_msgs/Pose pose
+geometry_msgs/PoseStamped pose
