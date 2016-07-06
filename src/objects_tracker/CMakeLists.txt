@@ -205,7 +205,7 @@ include_directories(
 ## My packages ##
 #################
 
-find_package(OpenCV 3 REQUIRED)
+find_package(OpenCV 2 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
 #find_package(CUDA 5.5 REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -255,23 +255,33 @@ target_link_libraries(pcl ${catkin_LIBRARIES} ${PCL_LIBRARIES} utilities)
 add_library(ros src/utilities/ros.cpp)
 target_link_libraries(ros ${catkin_LIBRARIES} utilities)
 
- # utilities bridge
- add_library(bridge src/utilities/bridge.cpp)
- target_link_libraries(bridge ${PCL_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
- 
- # utilities opencv
- add_library(opencv src/utilities/opencv.cpp)
- target_link_libraries(opencv ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
- 
- # utilities recognition
- add_library(recognition src/utilities/recognition.cpp)
- target_link_libraries(recognition ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} opencv bridge pcl)
- add_dependencies(recognition opencv bridge pcl)
+# # utilities bridge
+# add_library(bridge src/utilities/bridge.cpp)
+# target_link_libraries(bridge ${PCL_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+# 
+# # utilities opencv
+# add_library(opencv src/utilities/opencv.cpp)
+# target_link_libraries(opencv ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+# 
+# # utilities recognition
+# add_library(recognition src/recognition/Recognition.cpp)
+# target_link_libraries(recognition ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} opencv bridge pcl)
+# add_dependencies(recognition opencv bridge pcl)
+
+# PlaneSegmentation class
+add_library(plane_segmentation src/segmentation/PlaneSegmentation.cpp)
+target_link_libraries(plane_segmentation ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} pcl)
+add_dependencies(plane_segmentation pcl)
+
+# MultiplePlaneSegmentation class
+add_library(multiple_plane_segmentation src/segmentation/MultiplePlaneSegmentation.cpp)
+target_link_libraries(multiple_plane_segmentation ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} pcl plane_segmentation)
+add_dependencies(multiple_plane_segmentation pcl plane_segmentation)
 
 # extract_plane node
 add_executable(extract_plane src/extract_plane.cpp)
-target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} -lyaml-cpp pcl ros)
-add_dependencies(extract_plane opencv_nonfree249d.lib)
+target_link_libraries(extract_plane ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} -lyaml-cpp pcl ros multiple_plane_segmentation)
+add_dependencies(extract_plane opencv_nonfree249d.lib multiple_plane_segmentation)
 
 # tf_calibration node
 add_executable(tf_calibration src/tf_calibration.cpp)
@@ -285,18 +295,14 @@ target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-c
 add_executable(objects_to_rviz src/objects_to_rviz.cpp)
 target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${OPENCV_LIB} -lyaml-cpp ros)
  
- # objects_training node
- add_executable(objects_training src/objects_training.cpp)
- target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
- add_dependencies(objects_to_rviz ros utilities pcl recognition)
- 
- # objects_recognition node
- add_executable(objects_recognition src/objects_recognition.cpp)
- target_link_libraries(objects_recognition ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} -lyaml-cpp ros utilities pcl recognition)
- 
- # compute_graphics node
- add_executable(compute_graphics src/compute_graphics.cpp)
- target_link_libraries(compute_graphics ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${HDF5_hdf5_LIBRARY} utilities recognition)
+# # objects_training node
+# add_executable(objects_training src/objects_training.cpp)
+# target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
+# add_dependencies(objects_to_rviz ros utilities pcl recognition)
+# 
+# # objects_recognition node
+# add_executable(objects_recognition src/objects_recognition.cpp)
+# target_link_libraries(objects_recognition ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} -lyaml-cpp ros utilities pcl recognition)
 
 # # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)

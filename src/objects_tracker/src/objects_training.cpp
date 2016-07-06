@@ -16,7 +16,7 @@
 #include <objects_tracker/utilities/ros.hpp>
 #include <objects_tracker/utilities/pcl.hpp>
 #include <objects_tracker/utilities/utilities.hpp>
-#include <objects_tracker/utilities/recognition.hpp>
+#include <objects_tracker/recognition/Recognition.hpp>
 
 #include <mutex>
 #include <thread>

@@ -188,7 +188,6 @@ void correctNormal(const float origin[], const pcl::PointXYZRGBA &p, pcl::ModelC
 		coef.values[1] = -coef.values[1];
 		coef.values[2] = -coef.values[2];
 		coef.values[3] = -coef.values[3];
-		std::cout << "Normal corrected, angle " << angle << std::endl;
 	}
 }
 

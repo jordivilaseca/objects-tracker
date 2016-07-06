@@ -1,4 +1,4 @@
-#include <objects_tracker/utilities/recognition.hpp>
+#include <objects_tracker/recognition/Recognition.hpp>
 
 int Recogniser::getNumObjects() const {
 	int n = (objectsResults.size() > 0) ? 1 : 0;
