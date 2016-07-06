@@ -89,45 +89,9 @@ void createObjects(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	}
 }
 
-// void build_limit_markers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, kinect &k) {
-// 	for(int i = 0; i < k.nplanes; i++) {
-// 		std::vector< std::vector<double> > positions = std::vector< std::vector<double> >(k.planes[i].limits.size() + 1, std::vector<double>(3,0));
-// 		int j;
-
-// 		if (k.planes[i].limits.size() == 0) continue;
-
-// 		// Lines between consecutive points.
-// 		for(j = 0; j < k.planes[i].limits.size(); j++) {
-// 			pcl::PointXYZRGBA p = k.planes[i].limits[j];
-
-// 			positions[j][0] = p.x;
-// 			positions[j][1] = p.y;
-// 			positions[j][2] = p.z;
-// 		}
-// 		// create a line between last and first point.
-// 		positions[j] = positions[0];
-
-// 		double width = 0.03;
-// 		std::vector<double> color;
-// 		computeColor(i, k.nplanes, color);
-// 		double colorArr[] = {color[0], color[1], color[2], 1.0};
-// 		k.planes[i].markers.push_back(buildLineMarker(k.frame_id, i, positions, width, colorArr));
-// 	}
-// }
-
-// void publish_markers(const ros::TimerEvent&) {
-// 	for(int i = 0; i < ks.size(); i++) {
-// 		for (int j = 0; j < ks[i].planes.size(); j++) {
-// 			for(int l = 0; l < ks[i].planes[j].markers.size(); l++) {
-// 				ks[i].marker_pub.publish(ks[i].planes[j].markers[l]);
-// 			}
-// 		}
-// 	}
-// }
-
 void publishBoundaries(const ros::TimerEvent&, const MultiplePlaneSegmentation &s, const ros::Publisher &marPub, const std::string &frame_id) {
 
-	if (marPub.num_threads() > 0) {
+	if (marPub.getNumSubscribers() > 0) {
 		std::vector<std::vector<pcl::PointXYZRGBA>> boundaries;
 		s.getBoundaries(boundaries);
 		
@@ -169,6 +133,13 @@ int main(int argc, char **argv) {
 	ros::init(argc, argv, "extract_plane");
 	nh.reset(new ros::NodeHandle());
 
+	if(argc < 5){
+	    std::cout << std::endl;
+	    cout << "Not enough arguments provided." << endl;
+	    cout << "Usage: ./pose_calibration <cam> <quality> <link> <num_planes>" << endl;
+	    return 0;
+	}
+
 	// Compute plane direction.
 	std::string path = ros::package::getPath("objects_tracker");
 	std::string file = path + "/cfg/tf.yaml";
@@ -183,9 +154,10 @@ int main(int argc, char **argv) {
 
 	cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
 
-	std::string cam = "cam1";
-	std::string quality = "qhd";
-	std::string frame_id = "cam1_link";
+	std::string cam(argv[1]);
+	std::string quality(argv[2]);
+	std::string frame_id(argv[3]);
+	int nPlanes = atoi(argv[4]);
 
 	std::string subTopic = "/" + cam + "/" + quality + "/PointCloud";
 	std::string segTopic = "/" + cam + "/objects";
@@ -202,7 +174,7 @@ int main(int argc, char **argv) {
 	ros::Publisher segPub = nh->advertise<objects_tracker::Objects>(segTopic, 1);
 	ros::Publisher marPub = nh->advertise<visualization_msgs::Marker>(marTopic, 100);
 
-	MultiplePlaneSegmentation s(4, planeOrientation);
+	MultiplePlaneSegmentation s(nPlanes, planeOrientation);
 
 	// Compute planes coefficients.
 	while(ros::ok()) {
