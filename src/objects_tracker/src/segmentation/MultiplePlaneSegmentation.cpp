@@ -87,7 +87,7 @@ void MultiplePlaneSegmentation::computeBoundaries(const pcl::PointCloud<pcl::Poi
 	}
 }
 
-void MultiplePlaneSegmentation::getBoundaries(std::vector<std::vector<pcl::PointXYZRGBA>> &boundaries) {
+void MultiplePlaneSegmentation::getBoundaries(std::vector<std::vector<pcl::PointXYZRGBA>> &boundaries) const {
 	boundaries.resize(nPlanes);
 
 	for(int i = 0; i < nPlanes; i++) {

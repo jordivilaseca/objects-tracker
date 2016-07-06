@@ -22,5 +22,5 @@ public:
 	void getCoefficients(pcl::ModelCoefficients &coefficients);
 	void setCoefficients(const pcl::ModelCoefficients &coefficients);
 	void computeBoundary(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud);
-	void getBoundary(std::vector<pcl::PointXYZRGBA> &boundary);
+	void getBoundary(std::vector<pcl::PointXYZRGBA> &boundary) const;
 };

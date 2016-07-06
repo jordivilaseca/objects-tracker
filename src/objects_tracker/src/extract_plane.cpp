@@ -125,8 +125,36 @@ void createObjects(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 // 	}
 // }
 
-void publishBoundaries(const ros::TimerEvent&, const MultiplePlaneSegmentation& pr) {
-	// TODO.
+void publishBoundaries(const ros::TimerEvent&, const MultiplePlaneSegmentation &s, const ros::Publisher &marPub, const std::string &frame_id) {
+
+	if (marPub.num_threads() > 0) {
+		std::vector<std::vector<pcl::PointXYZRGBA>> boundaries;
+		s.getBoundaries(boundaries);
+		
+		for(int i = 0; i < boundaries.size(); i++) {
+			std::vector< std::vector<double> > positions = std::vector< std::vector<double> >(boundaries[i].size() + 1, std::vector<double>(3,0));
+			int j;
+
+			if (boundaries[i].size() == 0) continue;
+
+			// Lines between consecutive points.
+			for(j = 0; j < boundaries[i].size(); j++) {
+				pcl::PointXYZRGBA p = boundaries[i][j];
+
+				positions[j][0] = p.x;
+				positions[j][1] = p.y;
+				positions[j][2] = p.z;
+			}
+			// create a line between last and first point.
+			positions[j] = positions[0];
+
+			double width = 0.03;
+			std::vector<double> color;
+			computeColor(i, boundaries.size(), color);
+			double colorArr[] = {color[0], color[1], color[2], 1.0};
+			marPub.publish(buildLineMarker(frame_id, i, positions, width, colorArr));
+	 	}
+	}
 }
 
 void cloudCallback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &callbackCloud) {
@@ -160,7 +188,8 @@ int main(int argc, char **argv) {
 	std::string frame_id = "cam1_link";
 
 	std::string subTopic = "/" + cam + "/" + quality + "/PointCloud";
-	std::string pubTopic = "/" + cam + "/objects";
+	std::string segTopic = "/" + cam + "/objects";
+	std::string marTopic = "/" + cam + "/planes";
 
 	YAML::Node par = config[cam];
 	Eigen::Quaternion<float> quat(par["qw"].as<float>(), par["qx"].as<float>(), par["qy"].as<float>(), par["qz"].as<float>());
@@ -170,7 +199,8 @@ int main(int argc, char **argv) {
 	int nCumulative = 50;
 
 	ros::Subscriber sub = nh->subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(subTopic, 1, cloudCallback);
-	ros::Publisher segPub = nh->advertise<objects_tracker::Objects>(pubTopic, 1);
+	ros::Publisher segPub = nh->advertise<objects_tracker::Objects>(segTopic, 1);
+	ros::Publisher marPub = nh->advertise<visualization_msgs::Marker>(marTopic, 100);
 
 	MultiplePlaneSegmentation s(4, planeOrientation);
 
@@ -221,7 +251,7 @@ int main(int argc, char **argv) {
 	ROS_INFO("Boundaries computed");
 
 	// Timer to publish boundaries.
-	ros::Timer timer = nh->createTimer(ros::Duration(10), boost::bind(publishBoundaries, _1, boost::cref(s)));
+	ros::Timer timer = nh->createTimer(ros::Duration(10), boost::bind(publishBoundaries, _1, boost::cref(s), boost::cref(marPub), boost::cref(frame_id)));
 
 	// Publish segmented scene.
 	while(ros::ok()) {

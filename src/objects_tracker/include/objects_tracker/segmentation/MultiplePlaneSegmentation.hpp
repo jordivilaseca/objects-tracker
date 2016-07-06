@@ -23,6 +23,6 @@ public:
 	void updateMasks(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud);
 	void getCoefficients(std::vector<pcl::ModelCoefficients> &coefficients);
 	void computeBoundaries(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud);
-	void getBoundaries(std::vector<std::vector<pcl::PointXYZRGBA>> &boundaries);
+	void getBoundaries(std::vector<std::vector<pcl::PointXYZRGBA>> &boundaries) const;
 	void segment(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, std::vector<pcl::PointIndices> &clusterIndices);
 };

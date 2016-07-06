@@ -98,7 +98,7 @@ void PlaneSegmentation::computeBoundary(const pcl::PointCloud<pcl::PointXYZRGBA>
 	}
 }
 
-void PlaneSegmentation::getBoundary(std::vector<pcl::PointXYZRGBA> &boundary) {
+void PlaneSegmentation::getBoundary(std::vector<pcl::PointXYZRGBA> &boundary) const {
 	boundary = this->boundary;
 }
 
