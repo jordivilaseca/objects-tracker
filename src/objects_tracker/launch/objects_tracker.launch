@@ -9,8 +9,8 @@
   <node pkg="tf" type="static_transform_publisher" name="link1_broadcaster" args="0.335 2.796 0.82 0 0 0 1 world cams_pose 1000" />
 
   <node pkg="objects_tracker" name="tf_publisher" type="tf_publisher" />
-  <node machine="inhands" pkg="objects_tracker" name="point_cloud" type="point_cloud" args="$(cam) $(quality) $(link)"/>
-  <node machine="inhands" pkg="objects_tracker" name="extract_plane" type="extract_plane" args="$(cam) $(quality) $(link) $(num_planes)" />
-  <node pkg="objects_tracker" name="objects_recognition" type="objects_recognition" />
+  <node machine="inhands" pkg="objects_tracker" name="point_cloud" type="point_cloud" args="$(arg cam) $(arg quality) $(arg link)"/>
+  <node machine="inhands" pkg="objects_tracker" name="extract_plane" type="extract_plane" args="$(arg cam) $(arg quality) $(arg link) $(arg num_planes)" />
+  <node pkg="objects_tracker" name="objects_recognition" type="objects_recognition" args="$(arg cam)"/>
   <node machine="inhands" pkg="objects_tracker" name="objects_to_rviz" type="objects_to_rviz" />
 </launch>

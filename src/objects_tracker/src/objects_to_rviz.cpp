@@ -43,6 +43,7 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
       }
     }
   }
+  
   if (pub_pc.getNumSubscribers() > 0) {
 
     // Publish pointcloud containing all the objects.
@@ -63,34 +64,23 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "objects_to_rviz");
   ros::NodeHandle nh;
 
-  std::string path = ros::package::getPath("objects_tracker");
-  std::string file = path + "/cfg/tf.yaml";
-
-  YAML::Node config;
-  try {
-    config = YAML::LoadFile(file); // gets the root node
-  } catch (YAML::BadFile bf) {
-    ROS_ERROR("No configuration file found, it was searched at %s", file.c_str());
-    return 0;
+  if(argc < 2){
+      std::cout << std::endl;
+      cout << "Not enough arguments provided." << endl;
+      cout << "Usage: ./objects_recognition <cam> <link>" << endl;
+      return 0;
   }
 
-  std::vector<ros::Subscriber> subs(config.size()*config.size());
-  std::vector<ros::Publisher> pubs_bb(config.size()*config.size());
-  std::vector<ros::Publisher> pubs_pc(config.size());
+  std::string cam(argv[1]);
+  std::string frame_id(argv[1]);
+  std::string topic = "/" + cam + "/objects";
+  std::string namedTopic = "/" + cam + "/namedObjects";
 
-  int i = 0;
-  for (auto itCam = config.begin(); itCam != config.end(); ++itCam, ++i) {
-    YAML::Node cam = itCam->first;
-    YAML::Node par = itCam->second;
-    std::string topic = "/" + cam.as<string>() + "/objects";
-    std::string namedTopic = "/" + cam.as<string>() + "/namedObjects";
-
-    pubs_bb[2*i] = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 50);
-    pubs_bb[2*i+1] = nh.advertise<visualization_msgs::Marker>(namedTopic + "/boundingbox", 50);
-    pubs_pc[i] = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(topic + "/pointcloud", 50);
-    subs[i*2] = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[2*i]), boost::ref(pubs_pc[i])));
-    subs[i*2+1] = nh.subscribe<objects_tracker::Objects>(namedTopic, 1, boost::bind(publish, _1, cam.as<string>() + "_link", boost::ref(pubs_bb[2*i+1]), boost::ref(pubs_pc[i])));
-  }
+  ros::Publisher pub_bb = nh.advertise<visualization_msgs::Marker>(topic + "/boundingbox", 50);
+  ros::Publisher pub_nbb = nh.advertise<visualization_msgs::Marker>(namedTopic + "/boundingbox", 50);
+  ros::Publisher pub_pc = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>(topic + "/pointcloud", 50);
+  ros::Subscriber sub_bb = nh.subscribe<objects_tracker::Objects>(topic, 1, boost::bind(publish, _1, frame_id, boost::ref(pub_bb), boost::ref(pub_pc)));
+  ros::Subscriber sub_nbb = nh.subscribe<objects_tracker::Objects>(namedTopic, 1, boost::bind(publish, _1, frame_id, boost::ref(pub_nbb), boost::ref(pub_pc)));
 
   ros::spin();
 }

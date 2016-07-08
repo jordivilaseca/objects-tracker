@@ -43,35 +43,22 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "objects_recognition");
   ros::NodeHandle nh;
 
-  std::string path = ros::package::getPath("objects_tracker");
-  std::string file = path + "/cfg/cams.yaml";
-
   Recogniser r = Recogniser(Recogniser::DTYPE::BOTH);
   r.read(ros::package::getPath("objects_tracker") + "/training");
 
-  YAML::Node config;
-  try {
-    config = YAML::LoadFile(file); // gets the root node
-  } catch (YAML::BadFile bf) {
-    ROS_ERROR("No configuration file found, it was searched at %s", file.c_str());
-    return 0;
+  if(argc < 2){
+      std::cout << std::endl;
+      cout << "Not enough arguments provided." << endl;
+      cout << "Usage: ./objects_recognition <cam>" << endl;
+      return 0;
   }
 
-  std::cout << "config.size() = " << config.size() << std::endl; 
-  std::cout << config[0] << std::endl;
-  std::vector<ros::Subscriber> subs(config.size());
-  std::vector<ros::Publisher> pubs(config.size());
+  std::string cam(argv[1]);
+  std::string subTopic = "/" + cam + "/objects";
+  std::string pubTopic = "/" + cam + "/namedObjects";
 
-  int i = 0;
-  for (auto itCam = config.begin(); itCam != config.end(); ++itCam, ++i) {
-    std::string cam = itCam->as<std::string>();
-    std::cout << cam << " " << std::endl;
-    std::string subTopic = "/" + cam + "/objects";
-    std::string pubTopic = "/" + cam + "/namedObjects";
-
-    pubs[i] = nh.advertise<objects_tracker::Objects>(pubTopic, 1);
-    subs[i] = nh.subscribe<objects_tracker::Objects>(subTopic, 1, boost::bind(make_recognition, _1, boost::cref(r), boost::cref(pubs[i])));
-  }
+  ros::Publisher pub = nh.advertise<objects_tracker::Objects>(pubTopic, 1);
+  ros::Subscriber sub = nh.subscribe<objects_tracker::Objects>(subTopic, 1, boost::bind(make_recognition, _1, boost::cref(r), boost::cref(pub)));
 
   ros::spin();
 }

@@ -255,18 +255,18 @@ target_link_libraries(pcl ${catkin_LIBRARIES} ${PCL_LIBRARIES} utilities)
 add_library(ros src/utilities/ros.cpp)
 target_link_libraries(ros ${catkin_LIBRARIES} utilities)
 
-# # utilities bridge
-# add_library(bridge src/utilities/bridge.cpp)
-# target_link_libraries(bridge ${PCL_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
-# 
-# # utilities opencv
-# add_library(opencv src/utilities/opencv.cpp)
-# target_link_libraries(opencv ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
-# 
-# # utilities recognition
-# add_library(recognition src/recognition/Recognition.cpp)
-# target_link_libraries(recognition ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} opencv bridge pcl)
-# add_dependencies(recognition opencv bridge pcl)
+ # utilities bridge
+ add_library(bridge src/utilities/bridge.cpp)
+ target_link_libraries(bridge ${PCL_LIBRARIES} ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+ 
+ # utilities opencv
+ add_library(opencv src/utilities/opencv.cpp)
+ target_link_libraries(opencv ${CMAKE_DL_LIBS} ${OpenCV_LIBRARIES})
+ 
+ # utilities recognition
+ add_library(recognition src/recognition/Recognition.cpp)
+ target_link_libraries(recognition ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} opencv bridge pcl)
+ add_dependencies(recognition opencv bridge pcl)
 
 # PlaneSegmentation class
 add_library(plane_segmentation src/segmentation/PlaneSegmentation.cpp)
@@ -295,14 +295,14 @@ target_link_libraries(tf_publisher ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} -lyaml-c
 add_executable(objects_to_rviz src/objects_to_rviz.cpp)
 target_link_libraries(objects_to_rviz ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${OpenCV_LIBRARIES} ${OPENCV_LIB} -lyaml-cpp ros)
  
-# # objects_training node
-# add_executable(objects_training src/objects_training.cpp)
-# target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
-# add_dependencies(objects_to_rviz ros utilities pcl recognition)
-# 
-# # objects_recognition node
-# add_executable(objects_recognition src/objects_recognition.cpp)
-# target_link_libraries(objects_recognition ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} -lyaml-cpp ros utilities pcl recognition)
+ # objects_training node
+ add_executable(objects_training src/objects_training.cpp)
+ target_link_libraries(objects_training ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} ros utilities pcl recognition)
+ add_dependencies(objects_to_rviz ros utilities pcl recognition)
+ 
+ # objects_recognition node
+ add_executable(objects_recognition src/objects_recognition.cpp)
+ target_link_libraries(objects_recognition ${catkin_LIBRARIES} ${CMAKE_DL_LIBS} ${PCL_LIBRARIES} ${HDF5_hdf5_LIBRARY} -lyaml-cpp ros utilities pcl recognition)
 
 # # example cuda compiler
 # add_executable(extract_plane src/extract_plane.cpp src/utilities.cu)

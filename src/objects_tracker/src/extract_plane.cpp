@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 	if(argc < 5){
 	    std::cout << std::endl;
 	    cout << "Not enough arguments provided." << endl;
-	    cout << "Usage: ./pose_calibration <cam> <quality> <link> <num_planes>" << endl;
+	    cout << "Usage: ./extract_plane <cam> <quality> <link> <num_planes>" << endl;
 	    return 0;
 	}
 

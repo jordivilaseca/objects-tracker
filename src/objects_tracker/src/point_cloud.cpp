@@ -117,7 +117,7 @@ int main(int argc, char **argv)
   if(argc < 4){
     std::cout << std::endl;
     cout << "Not enough arguments provided." << endl;
-    cout << "Usage: ./pose_calibration <cam> <quality> <link>" << endl;
+    cout << "Usage: ./point_cloud <cam> <quality> <link>" << endl;
     return 0;
   }
 

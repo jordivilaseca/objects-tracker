@@ -156,17 +156,13 @@ void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> 
 
   confMat = std::vector<std::vector<int>>(ntesting, std::vector<int>(ntraining, 0));
 
-  // std::cout << "prefor" << std::endl;
   for(int k = 0; k < testingNames.size(); k++) {
     // It contains [object, numPhotos]
 
     std::string goodName = testingNames[k];
 
-    // std::cout << "prepredict" << std::endl;
-    
     std::string name = r.predict(testingObjects[k], testingIndices[k]);
   
-    // std::cout << "postpredict" << std::endl;
     // Find position in confusion matrix.
     auto iti = std::find(testingHeader.begin(), testingHeader.end(), goodName);
     int i = std::distance(testingHeader.begin(), iti);
@@ -175,38 +171,8 @@ void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> 
     int j = std::distance(trainingHeader.begin(), itj);
 
     confMat[i][j] += 1;
-
-    // std::cout << "end" << std::endl;
   }
 }
-
-// void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &objectsNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, const std::vector<pcl::PointIndices> &objectsIndices, std::vector<std::vector<int>> &confMat) {
-  
-//   int nelem = trainingHeader.size();
-
-//   confMat = std::vector<std::vector<int>>(nelem, std::vector<int>(nelem, 0));
-
-//   for(int k = 0; k < objectsNames.size(); k++) {
-//     // It contains [object, numPhotos]
-
-//     std::string goodName = objectsNames[k];
-    
-//     std::string name = r.predict(objects[k], objectsIndices[k]);
-  
-//     // Find position in confusion matrix.
-//     auto iti = std::find(trainingHeader.begin(), trainingHeader.end(), goodName);
-//     int i = std::distance(trainingHeader.begin(), iti);
-
-//     // Update confusion matrix.
-//     if(name == goodName) {
-//       confMat[i][i] += 1;
-//     } else {
-//       auto itj = std::find(trainingHeader.begin(), trainingHeader.end(), name);
-//       int j = std::distance(trainingHeader.begin(), itj);
-//       confMat[i][j] += 1;
-//     }
-//   }
-// }
 
 void computeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader, std::vector<float> &accur, std::vector<float> &precision, std::vector<float> &recall, std::vector<float> &fmeasure) {
 
@@ -374,16 +340,6 @@ void tryTraining(const Recogniser &ra) {
 
     std::string result = ra.predict(objectCopy, *indicesCopy);
     cout << result << endl;
-
-    /*
-    // Compute descriptors.
-    pcl::PointCloud<pcl::VFHSignature308>::Ptr target(new pcl::PointCloud<pcl::VFHSignature308>());
-    computeDescriptors(object, target);
-    std::vector<std::vector<float>> target;
-    computeDescriptors(objectCopy, *indicesCopy, target);
-
-    //findBestMatch(target, header, kdtree);
-    */
   }
 }
 
@@ -633,9 +589,8 @@ int main(int argc, char **argv)
   sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(topic, 1, boost::bind(pointcloud_callback, _1, markerSize*2.0, boost::ref(plane), boost::ref(limits), boost::ref(pointcloud_pub)));
 
   std::string option;
-  
   std::string path = ros::package::getPath("objects_tracker");
-
+  
   ros::AsyncSpinner spinner(1); // Use 4 threads
   spinner.start();
 

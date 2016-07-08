@@ -119,13 +119,6 @@ void Recogniser::computeDescriptors(const pcl::PointCloud<pcl::PointXYZRGBA>::Co
 			pointcloud2mat(*region, image, mask);
 			cvtColor(image, image, cv::COLOR_BGR2HSV);
 
-/*			cv::namedWindow("mask" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
-			cv::namedWindow("image" + std::to_string(i), CV_WINDOW_AUTOSIZE|CV_WINDOW_FREERATIO);
-			cv::imshow("image" + std::to_string(i), image);
-	        cv::waitKey(250);
-	        cv::imshow("mask" + std::to_string(i), mask);
-	        cv::waitKey(250);*/
-
 			// Compute color histogram.
 			float incPerValue = totalSumHisto/regionIndices->indices.size();
 			calcHsvHist(image, mask, hBins, sBins, incPerValue, cvDesc);
@@ -224,7 +217,6 @@ void Recogniser::computeModel() {
 }
 
 void Recogniser::read(const std::string &path) {
-	// std::cout << "in read" << std::endl;
 	model = cv::Algorithm::load<cv::ml::SVM>(path + "/" + MODEL_NAME);
 	readList(objectsNames, path + "/" + NAMES_NAME);
 
@@ -239,12 +231,10 @@ void Recogniser::read(const std::string &path) {
     d_fs["SBins"] >> sBins;
     d_fs.release();
     this->setDescriptor( static_cast<DTYPE>(d));
-    // std::cout << "dtype " << d << " " << path + "/" + DESCRIPTOR_NAME << std::endl;
 
 	std::vector<cv::Mat> vocabularyVector = {vocabulary};
 	matcher->add(vocabularyVector);
 	matcher->train();
-	// std::cout << "out read " << vocabulary.rows << std::endl;
 }
 
 void Recogniser::write(const std::string &path) const {
@@ -263,33 +253,23 @@ void Recogniser::write(const std::string &path) const {
 }
 
 std::string Recogniser::predict(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &object, const pcl::PointIndices &indices) const {
-	// std::cout << "in predict" << std::endl;
 	// Compute descriptors.
 	cv::Mat descriptors;
 	computeDescriptors(object, indices, descriptors);
-
-	// std::cout << "prematcher " << dSize << " " << descriptors.cols << std::endl;
-	// std::cout << vocabulary << std::endl << descriptors << std::endl;
-
-	// std::cout << "wat" << std::endl;
 
 	// Compute matches.
 	std::vector<cv::DMatch> matches;
 	matcher->match(descriptors, matches);
 
 	// Compute model Descriptor.
-	// std::cout << vocabulary << std::endl;
 	cv::Mat modelDescriptor(1, vocabulary.rows, CV_32FC1, cv::Scalar(0.0));
-	// std::cout << "pepe " << vocabulary.rows << std::endl;
 	for (const cv::DMatch &match : matches) {
-		// std::cout << match.trainIdx << " " << std::flush;
 		modelDescriptor.at<float>(0,match.trainIdx)++;
 	}
+
 	// Predict.
-	cv::Mat outputs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
-	cv::Mat probs;//(1, vocabulary.rows, CV_32F, cv::Scalar(0));
+	cv::Mat outputs;
+	cv::Mat probs;
 	int index = (int) model->predict(modelDescriptor, outputs);
-	// std::cout << modelDescriptor << std::endl << outputs << std::endl << probs << std::endl;
-	// std::cout << "asdf " << (int) outputs.at<int>(0) << " " << objectsNames.size() << std::endl;
 	return objectsNames[(int) outputs.at<float>(0)];
 }
