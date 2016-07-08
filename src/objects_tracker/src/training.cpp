@@ -39,6 +39,13 @@ mutex m;
 Recogniser::DTYPE dtype = Recogniser::DTYPE::BOTH;
 Recogniser r(dtype);
 
+/**
+ * @brief Returns the different elements of vector. All the elements of a type must be consecutive.
+ * 
+ * @param list vector containing all the elements
+ * @tparam T It could be used any type that has implemented comparison function.
+ * @return All the distinct elements that contains the input vector
+ */
 template <typename T>
 std::vector<T> computeHeader(const std::vector<T> &list) {
   std::vector<T> header(list.size());
@@ -55,13 +62,31 @@ std::vector<T> computeHeader(const std::vector<T> &list) {
   return header;
 }
 
-void publish_object_tf(const ros::TimerEvent&, tf::TransformBroadcaster &br, const Eigen::Vector3f &pos, const Eigen::Vector4f &quat, const std::string &frame_id) {
+/**
+ * @brief Function called by a ROS Timer. It publishes a transformation from 'frame_id' to 'object_tf'.
+ * 
+ * @param t Timer event.
+ * @param br Transform broadcaster to send the transform.
+ * @param pos Position of 'object_tf'.
+ * @param quat Quaternion rotation of 'object_tf'.
+ * @param frame_id Initial frame of the transformation.
+ */
+void publish_object_tf(const ros::TimerEvent& t, tf::TransformBroadcaster &br, const Eigen::Vector3f &pos, const Eigen::Vector4f &quat, const std::string &frame_id) {
   tf::Transform transform;
   transform.setOrigin(tf::Vector3(pos[0], pos[1], pos[2]));
   transform.setRotation(tf::Quaternion(quat[1], quat[2], quat[3], quat[0]));
   br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), frame_id, "/object_tf"));
 }
 
+/**
+ * @brief Makes the accumulation of 'max_i' quaternion rotation 'quat' and position 'pos' of a ar_track_alvar tag.
+ * 
+ * @param msg ar_track_alvar message.
+ * @param i Current iteration.
+ * @param max_i Maximim number of iterations.
+ * @param [out] quat It contains the accumulation of 'i' quaternion rotations.
+ * @param [out] pos It contains the accumulation of 'i' positions. 
+ */
 void pose_callback(const ar_track_alvar_msgs::AlvarMarkers::ConstPtr& msg, int &i, int max_i, Eigen::Vector4f &quat, Eigen::Vector3f &pos) {
   if(msg->markers.size() > 1) {
     ROS_WARN("Found more than one marker, it cannot happen!");
@@ -85,6 +110,13 @@ void pose_callback(const ar_track_alvar_msgs::AlvarMarkers::ConstPtr& msg, int &
   i++;
 }
 
+/**
+ * @brief It publishes the biggest object and copies it to a global variable 'object' and its indices to 'objectInd' based on a segmentation of 'cloud'.
+ * @details The segmentation extracts a cube, the inferior side plane set at 2 cm above the plane coefficient 'plane', the upper side in parallel to 'plane' but moved 'dist' meters, the  other sides based on the 'limits'.
+ * 
+ * @param limits It contains the corners of the tag.
+ * @param pointcloud_pub point cloud publisher.
+ */
 void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, double dist, const pcl::ModelCoefficients &plane, const std::vector<pcl::PointXYZRGBA> &limits, ros::Publisher &pointcloud_pub) {
   pcl::PointIndices::Ptr trainingIndices(new pcl::PointIndices());
   trainingIndices->indices.resize(cloud->points.size());
@@ -137,17 +169,24 @@ void pointcloud_callback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clo
   pointcloud_pub.publish(*object);
 }
 
+/**
+ * @brief Print available commands.
+ */
 void print_help() {
   cout << endl << "Welcome to the objects training node! You have the next options.\n\t[1] Update training set.\n\t[2] Update testing set.\n\t[3] Train model.\n\t[4] Try training.\n\t[5] Compute confusion matrix.\n\t[6] Change descriptor used.\n\t[7] Change Parameters.\n\t[8] Exit\n\nEnter an option: ";
 }
 
-void async_read(bool &newOption, std::string &option) {
-  std::string current_option;
-  while(true) {
-    cin >> option;
-    newOption = true;
-  }
-}
+/**
+ * @brief Computes a confusion matrix
+ * 
+ * @param r Recogniser object already trained.
+ * @param trainingHeader Objects of the training set.
+ * @param testingHeader Objects of the testing set.
+ * @param testingNames It contains the correct identifiers of the objects to predict.
+ * @param testingObjects It contains the objects to predict.
+ * @param testingIndices It contains the indices of the objects to predict.
+ * @param [out] confMat Returned confusion matrix.
+ */
 
 void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader, const std::vector<std::string> &testingNames, const std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &testingObjects, const std::vector<pcl::PointIndices> &testingIndices, std::vector<std::vector<int>> &confMat) {
   
@@ -157,10 +196,7 @@ void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> 
   confMat = std::vector<std::vector<int>>(ntesting, std::vector<int>(ntraining, 0));
 
   for(int k = 0; k < testingNames.size(); k++) {
-    // It contains [object, numPhotos]
-
     std::string goodName = testingNames[k];
-
     std::string name = r.predict(testingObjects[k], testingIndices[k]);
   
     // Find position in confusion matrix.
@@ -174,6 +210,17 @@ void computeConfusionMatrix(const Recogniser &r, const std::vector<std::string> 
   }
 }
 
+/**
+ * @brief It computes accuracy, precision, recalll and fmeasure from a confusion matrix.
+ * 
+ * @param confMat Confusion matrix.
+ * @param trainingHeader Objects of the training set.
+ * @param testingHeader Objects of the testing set.
+ * @param [out] accur It returns the accuracy of each object.
+ * @param [out] precision It returns the precision of each object.
+ * @param [out] recall It returns the recall of each object.
+ * @param [out] fmeasure It returns the f-measure of each object.
+ */
 void computeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader, std::vector<float> &accur, std::vector<float> &precision, std::vector<float> &recall, std::vector<float> &fmeasure) {
 
   assert(testingHeader.size() == confMat.size() and testingHeader.size() > 0);
@@ -218,6 +265,14 @@ void computeMetrics(const std::vector<std::vector<int>> &confMat, const std::vec
   }
 }
 
+/**
+ * @brief It reads all the objects from a directory, where all the point clouds of an object are inside a subdirectory.
+ * 
+ * @param path Path of the root directory.
+ * @param [out] objectsNames Vector containing the identifiers of the objects.
+ * @param [out] objects Vector containing the points cloud of the objects.
+ * @param [out] objectsIndices Vector containing the indexes of the objects.
+ */
 void readPointClouds(const std::string &path, std::vector<std::string> &objectsNames, std::vector<pcl::PointCloud<pcl::PointXYZRGBA>::Ptr> &objects, std::vector<pcl::PointIndices> &objectsIndices) {
   
   objectsNames = std::vector<std::string>();
@@ -262,6 +317,11 @@ void readPointClouds(const std::string &path, std::vector<std::string> &objectsN
   }
 }
 
+/**
+ * @brief It saves an image every time the enter is pressed.
+ * 
+ * @param objects_path Path where the objects are stored.
+ */
 void computeObjects(const std::string &objects_path) {
   cout << "Object name: ";
 
@@ -313,6 +373,11 @@ void computeObjects(const std::string &objects_path) {
   }
 }
 
+/**
+ * @brief It predicts and object every time the enter is pressed.
+ * 
+ * @param ra Trained recognition class to make the predictions.
+ */
 void tryTraining(const Recogniser &ra) {
   cout << "Press enter every moment you want to take a picture, enter 'exit' to stop." << endl; 
 
@@ -343,7 +408,13 @@ void tryTraining(const Recogniser &ra) {
   }
 }
 
-void parse_option(std::string option, std::string objects_path, std::string frame) {
+/**
+ * @brief Makes the parsing of an option.
+ * 
+ * @param option Option identifier
+ * @param objects_path Path of the objects directory.
+ */
+void parse_option(std::string option, std::string objects_path) {
   if (option.length() != 1) return;
 
   std::string training_path = objects_path + "/training";
@@ -601,7 +672,7 @@ int main(int argc, char **argv)
 
     if (option == "8") break;
 
-    parse_option(option, path, frame);
+    parse_option(option, path);
     cout << "Enter an option: ";
   }
   spinner.stop();
