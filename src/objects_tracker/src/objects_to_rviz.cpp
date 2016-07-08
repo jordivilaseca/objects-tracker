@@ -43,7 +43,7 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
       }
     }
   }
-  
+
   if (pub_pc.getNumSubscribers() > 0) {
 
     // Publish pointcloud containing all the objects.
@@ -72,7 +72,7 @@ int main(int argc, char **argv)
   }
 
   std::string cam(argv[1]);
-  std::string frame_id(argv[1]);
+  std::string frame_id(argv[2]);
   std::string topic = "/" + cam + "/objects";
   std::string namedTopic = "/" + cam + "/namedObjects";
 

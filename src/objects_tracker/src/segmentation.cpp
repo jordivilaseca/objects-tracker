@@ -130,13 +130,13 @@ void cloudCallback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &callbackC
 }
 
 int main(int argc, char **argv) {
-	ros::init(argc, argv, "extract_plane");
+	ros::init(argc, argv, "segmentation");
 	nh.reset(new ros::NodeHandle());
 
 	if(argc < 5){
 	    std::cout << std::endl;
 	    cout << "Not enough arguments provided." << endl;
-	    cout << "Usage: ./extract_plane <cam> <quality> <link> <num_planes>" << endl;
+	    cout << "Usage: ./segmentation <cam> <quality> <link> <num_planes>" << endl;
 	    return 0;
 	}
 

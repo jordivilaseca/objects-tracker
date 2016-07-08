@@ -495,13 +495,13 @@ void parse_option(std::string option, std::string objects_path, std::string fram
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "objects_training");
+  ros::init(argc, argv, "training");
   ros::NodeHandle nh;
 
   if(argc < 4){
     std::cout << std::endl;
     cout << "Not enough arguments provided." << endl;
-    cout << "Usage: ./objects_training <marker_size> <frame> <image_topic>" << endl;
+    cout << "Usage: ./training <marker_size> <frame> <image_topic>" << endl;
     return 0;
   }
 
@@ -516,8 +516,8 @@ int main(int argc, char **argv)
   Eigen::Vector3f pos(0,0,0);
 
   ros::Subscriber sub = nh.subscribe<ar_track_alvar_msgs::AlvarMarkers>("/ar_pose_marker", 10, boost::bind(pose_callback, _1, boost::ref(i), max_i, boost::ref(quat), boost::ref(pos)));
-  ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>("/objects_training/markers", 50);
-  ros::Publisher pointcloud_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>("objects_training/object", 5);
+  ros::Publisher marker_pub = nh.advertise<visualization_msgs::Marker>("/training/markers", 50);
+  ros::Publisher pointcloud_pub = nh.advertise<pcl::PointCloud<pcl::PointXYZRGBA>>("training/object", 5);
 
   ROS_INFO("Looking for a tag...");
   while(i < max_i) {
@@ -569,7 +569,7 @@ int main(int argc, char **argv)
   double color0[] = {0, 0, 1, 0.1};
   double orien0[] = {(double) q.x(), (double) q.y(), (double) q.z(), (double) q.w()};
   marker_pub.publish(buildMarker(frame, 0, visualization_msgs::Marker::CUBE, markerPos0, scale0, color0, orien0));
-  ROS_INFO("Published training area in /objects_training/markers. Only the points inside it will be used for training");
+  ROS_INFO("Published training area in /training/markers. Only the points inside it will be used for training");
 
   // Publish axis.
   std::vector< std::vector<double> > markerPos1 = {{pos[0], pos[1], pos[2]}, {pos[0]+x[0], pos[1]+x[1], pos[2]+x[2]}};
@@ -583,14 +583,14 @@ int main(int argc, char **argv)
   std::vector< std::vector<double> > markerPos3 = {{pos[0], pos[1], pos[2]}, {pos[0]+z[0], pos[1]+z[1], pos[2]+z[2]}};
   double color3[] = {0, 0, 1, 1};
   marker_pub.publish(buildLineMarker(frame, 3, markerPos3, 0.01, color3));
-  ROS_INFO("Published axis in /objects_training/markers");
+  ROS_INFO("Published axis in /training/markers");
 
   ROS_INFO("Ready to learn a new object!");
   sub = nh.subscribe<pcl::PointCloud<pcl::PointXYZRGBA>>(topic, 1, boost::bind(pointcloud_callback, _1, markerSize*2.0, boost::ref(plane), boost::ref(limits), boost::ref(pointcloud_pub)));
 
   std::string option;
   std::string path = ros::package::getPath("objects_tracker");
-  
+
   ros::AsyncSpinner spinner(1); // Use 4 threads
   spinner.start();
 
