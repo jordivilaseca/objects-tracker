@@ -13,6 +13,10 @@
 #include <opencv2/features2d.hpp>
 #include <opencv2/ml.hpp>
 
+/**
+ * @brief Class in charge of recognising objects. It Provides an easy way to use different descriptors and
+ * configurations for the learning and predicition of data.
+ */
 class Recogniser
 {
 
