@@ -114,6 +114,10 @@ void pose_callback(const ar_track_alvar_msgs::AlvarMarkers::ConstPtr& msg, int &
  * @brief It publishes the biggest object and copies it to a global variable 'object' and its indices to 'objectInd' based on a segmentation of 'cloud'.
  * @details The segmentation extracts a cube, the inferior side plane set at 2 cm above the plane coefficient 'plane', the upper side in parallel to 'plane' but moved 'dist' meters, the  other sides based on the 'limits'.
  * 
+ * @param cloud New point cloud.
+ * @param dist Maximum distance for a point to be part of a plane in meters.
+ * @param plane Coefficients of the planes.
+ * @param limits Limits of the planes.
  * @param limits It contains the corners of the tag.
  * @param pointcloud_pub point cloud publisher.
  */

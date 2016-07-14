@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
 			pcl::copyPointCloud(*cloud, *currentCloud);
 			m.unlock();
 
-			s.computePlanes(currentCloud);
+			s.computeCoefficients(currentCloud);
 
 			newCloud = false;
 			break;

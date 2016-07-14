@@ -3,6 +3,14 @@
 using namespace cv;
 
 /* It only works with organized point clouds*/
+/**
+ * @brief It converts an organized point cloud to an image. The valid points (points that do not have a nan as x coordinate) are copied to the image and
+ * marked as valids in the mask.
+ * 
+ * @param cloud Point cloud to convert.
+ * @param [out] image Obtained image.
+ * @param [out] mask Mask of valid points of the image.
+ */
 void pointcloud2mat(const pcl::PointCloud<pcl::PointXYZRGBA> &cloud, cv::Mat &image, cv::Mat &mask) {
 	image = cv::Mat(cloud.height, cloud.width, CV_8UC3, cv::Scalar(255, 255, 255));
 	mask = cv::Mat(cloud.height, cloud.width, CV_8UC1, cv::Scalar(0));

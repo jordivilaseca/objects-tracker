@@ -7,34 +7,20 @@
 #include <iostream>
 #include <sstream>
 #include <numeric>
+#include <sys/time.h>
+
+long long getTime();
 
 void computeColor(int i, int n, std::vector<int> &color);
 void computeColor(int i, int n, std::vector<double> &color);
 
-template <typename T>
-void computeColor(int i, int n, T max, std::vector<int> &color) {
-	double param, fractpart, intpart;
-	param = ((float) i)/((float) n)*4.0;
-	fractpart = std::modf(param , &intpart);
-	switch ((int) intpart) {
-		case 0:
-			color = {max, max*fractpart, 0};
-			break;
-		case 1:
-			color = {max - max*fractpart, max, 0};
-			break;
-		case 2:
-			color = {0, max, max*fractpart};
-			break;
-		case 3:
-			color = {0, max - max*fractpart, max};
-			break;
-		default:
-			color = {max, max, max};
-			break;
-	}
-}
-
+/**
+ * @brief Compute n different colours.
+ * 
+ * @param n Total number of colours to compute.
+ * @param colours Returned colours.
+ * @tparam T Integer for [0,255] interval colours, and double for [0,1] interval colours.
+ */
 template <typename T>
 void computeColors(int n, std::vector< std::vector<T> > &colours) {
 	static_assert(std::is_same<T, int>::value or std::is_same<T, double>::value, "Error computeColors. It only accepts floats or ints");
@@ -51,6 +37,13 @@ void computeColors(int n, std::vector< std::vector<T> > &colours) {
 	}
 }
 
+/**
+ * @brief Sum the elements of a vector
+ * 
+ * @param list Vector of elements to add.
+ * @tparam T It needs a type with the addition operator implemented.
+ * @return Total value.
+ */
 template <typename T>
 T sum(const std::vector<T> &list) {
 	T total = {};
@@ -60,6 +53,13 @@ T sum(const std::vector<T> &list) {
 	return total;
 }
 
+/**
+ * @brief Convert quaternions to Euler angles.
+ * 
+ * @param q Quaternion.
+ * @param [out] e Euler angles.
+ * @tparam T Numerical type.
+ */
 template <typename T>
 void quaternion2euler(const T q, T &e) {
 	assert(e.size() == 3);
@@ -68,6 +68,13 @@ void quaternion2euler(const T q, T &e) {
 	e[2] = atan2(2*(q[0]*q[3] + q[1]*q[2]), 1 - 2*(q[2]*q[2] + q[3]*q[3]));
 }
 
+/**
+ * @brief Write list to a file
+ * 
+ * @param list List of elements to write
+ * @param path Path where the file must be written.
+ * @tparam T Type with the ofstream function implemented.
+ */
 template <typename T>
 void writeList(const std::vector<T> &list, std::string path) {
 	std::ofstream fs;
@@ -77,6 +84,13 @@ void writeList(const std::vector<T> &list, std::string path) {
     fs.close();
 }
 
+/**
+ * @brief Read list to a file
+ * 
+ * @param [out] list Output list.
+ * @param path Path where the file must be read.
+ * @tparam T Type with the ofstream function implemented.
+ */
 template <typename T>
 bool readList(std::vector<T> &list, std::string path) {
 	std::ifstream fs;
@@ -92,6 +106,13 @@ bool readList(std::vector<T> &list, std::string path) {
 	return true;
 }
 
+/**
+ * @brief Write matrix to a file
+ * 
+ * @param matrix Matrix of elements to write
+ * @param path Path where the file must be written.
+ * @tparam T Type with the ofstream function implemented.
+ */
 template <typename T>
 void writeMatrix(const std::vector<std::vector<T>> &matrix, const std::string &path) {
 	std::ofstream fs;
@@ -105,6 +126,13 @@ void writeMatrix(const std::vector<std::vector<T>> &matrix, const std::string &p
     fs.close();
 }
 
+/**
+ * @brief Read matrix to a file
+ * 
+ * @param [out] matrix Output matrix.
+ * @param path Path where the file must be read.
+ * @tparam T Type with the ofstream function implemented.
+ */
 template <typename T>
 bool readMatrix(std::vector<std::vector<T>> &matrix, const std::string &path) {
 
@@ -135,7 +163,5 @@ void printList(const std::vector<T> &list) {
 }
 
 void writeMetrics(const std::vector<std::vector<int>> &confMat, const std::vector<float> &accur,const std::vector<float> &precision, const std::vector<float> &recall, const std::vector<float> &fmeasure, const std::vector<std::string> &trainingHeader, const std::vector<std::string> &testingHeader,const std::string &path);
-
-void quaternion2euler(const std::vector<float> q, std::vector<float> &e);
 
 #endif

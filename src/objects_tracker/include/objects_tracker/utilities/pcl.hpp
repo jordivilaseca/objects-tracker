@@ -23,15 +23,12 @@
 // std
 #include <queue>
 #include <stack>
-#include <sys/time.h>
 
 #include <ros/ros.h>
 
 #include <omp.h>
 
 #include <objects_tracker/utilities/utilities.hpp>
-
-long long getTime();
 
 // Colour point cloud.
 void colourPoint(pcl::PointXYZRGBA &point, int r, int g, int b);
@@ -73,6 +70,3 @@ void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, p
 // Descriptors functions.
 
 void vfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::PointIndices::Ptr &indices, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptor);
-void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors);
-void ourcvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors);
-void shot352(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, float radius, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors);

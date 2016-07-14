@@ -1,5 +1,14 @@
 #include <objects_tracker/utilities/opencv.hpp>
 
+
+/**
+ * @brief It computes the histogram of red, green and blue in the image
+ * 
+ * @param image Image from which the histogram is calculated.
+ * @param mask Mask of valid pixels.
+ * @param histSize Number of bins for red, green and blue.
+ * @param [out] hist Obtained histogram. 
+ */
 void calcRgbHistSep(const cv::Mat &image, const cv::Mat &mask, int histSize, cv::Mat &hist) {
 	float range[] = {0, 256};
 	const float* histRange[] = {range};
@@ -26,6 +35,14 @@ void calcRgbHistSep(const cv::Mat &image, const cv::Mat &mask, int histSize, cv:
 	cv::hconcat(hist, r_hist, hist);
 }
 
+/**
+ * @brief It calculates the histogram an histogram using all the combinations of red, green and blue.
+ * 
+ * @param image Image from which the histogram is calculated.
+ * @param mask Mask of valid pixels.
+ * @param histSize Number of bins for red, green and blue.
+ * @param [out] hist Obtained histogram. 
+ */
 void calcRgbHist(const cv::Mat &image, const cv::Mat &mask, int bins, cv::Mat &hist) {
 
 	int histSize[] = {bins, bins, bins};
@@ -50,6 +67,16 @@ void calcRgbHist(const cv::Mat &image, const cv::Mat &mask, int bins, cv::Mat &h
 	}
 }
 
+/**
+ * @brief It calculates the histogram an histogram using all the combinations of Hue and Saturation.
+ * 
+ * @param image Image from which the histogram is calculated.
+ * @param mask Mask of valid pixels.
+ * @param h_bins Number of bins for Hue channel.
+ * @param s_bins Number of bins for the Saturation channel. 
+ * @param incPerValue Each position of the histogram is multiplied by this number.
+ * @param [out] hist Obtained histogram.
+ */
 void calcHsvHist(const cv::Mat &image, const cv::Mat &mask, int h_bins, int s_bins, float incPerValue, cv::Mat &hist) {
     int histSize[] = { h_bins, s_bins };
 

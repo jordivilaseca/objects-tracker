@@ -1,5 +1,13 @@
 #include <objects_tracker/segmentation/MultiplePlaneSegmentation.hpp>
 
+/**
+ * @brief Initialization of a MultiplePlaneSegmentation
+ * 
+ * @param nPlanes Number of planes to recognise.
+ * @param orientation Vector parallel to the planes that must be found.
+ * @param angleThreshold Maximum desviation accepted of the plane orientation in degree.
+ * @param planeDistance Distance up to a point is considered part of a plane. It must be positive.
+ */
 MultiplePlaneSegmentation::MultiplePlaneSegmentation(int nPlanes, Eigen::Vector3f orientation, float angleThreshold, float planeDistance) {
 	this->nPlanes = nPlanes;
 	this->orientation = orientation;
@@ -12,11 +20,19 @@ MultiplePlaneSegmentation::MultiplePlaneSegmentation(int nPlanes, Eigen::Vector3
 	}
 }
 
+/**
+ * @brief Class destructor.
+ */
 MultiplePlaneSegmentation::~MultiplePlaneSegmentation() {
 
 }
 
-void MultiplePlaneSegmentation::computePlanes(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
+/**
+ * @brief Compute the coefficients of the number of planes specified for a given cloud. 
+ * 
+ * @param cloud Point cloud in which the computation is based.
+ */
+void MultiplePlaneSegmentation::computeCoefficients(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
 
 	// Cloud containing the points without the planes.
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
@@ -67,12 +83,22 @@ void MultiplePlaneSegmentation::computePlanes(const pcl::PointCloud<pcl::PointXY
 	}
 }
 
+/**
+ * @brief Update the mask used for the computation of the plane boundaries.
+ * 
+ * @param cloud Point cloud used to update the mask.
+ */
 void MultiplePlaneSegmentation::updateMasks(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
 	for(int i = 0; i < nPlanes; i++) {
 		planes[i].updateMask(cloud);
 	}
 }
 
+/**
+ * @brief Get the coefficients of the computated planes. The results are only valid if the computation of them is previously done.
+ * 
+ * @param [out] coefficients Vector contatining the coefficients of each plane.
+ */
 void MultiplePlaneSegmentation::getCoefficients(std::vector<pcl::ModelCoefficients> &coefficients) {
 	coefficients.resize(nPlanes);
 
@@ -81,12 +107,22 @@ void MultiplePlaneSegmentation::getCoefficients(std::vector<pcl::ModelCoefficien
 	}
 }
 
+/**
+ * @brief It computes de boundaries of a cloud. The mask must have at least one element.
+ * 
+ * @param cloud Cloud in which the boundaries are computed.
+ */
 void MultiplePlaneSegmentation::computeBoundaries(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud) {
 	for(int i = 0; i < nPlanes; i++) {
 		planes[i].computeBoundary(cloud);
 	}
 }
 
+/**
+ * @brief Obtain the previously computed boundaries.
+ * 
+ * @param boundaries Vector of boundaries, one for each plane.
+ */
 void MultiplePlaneSegmentation::getBoundaries(std::vector<std::vector<pcl::PointXYZRGBA>> &boundaries) const {
 	boundaries.resize(nPlanes);
 
@@ -95,6 +131,13 @@ void MultiplePlaneSegmentation::getBoundaries(std::vector<std::vector<pcl::Point
 	}
 }
 
+/**
+ * @brief It segments a cloud using the planes and boundaries previously calculated. A point is considered to be part of a valid object if it is above the plane, 
+ * inside the limits of the planes and it is not part of any of the planes.
+ * 
+ * @param cloud Point cloud to segment.
+ * @param [out] clusterIndices Valid indices after the segmentation.
+ */
 void MultiplePlaneSegmentation::segment(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, std::vector<pcl::PointIndices> &clusterIndices) {
 	
 	std::vector<pcl::ModelCoefficients> coefficients;
@@ -103,14 +146,12 @@ void MultiplePlaneSegmentation::segment(const pcl::PointCloud<pcl::PointXYZRGBA>
 	std::vector<std::vector<pcl::PointXYZRGBA>> boundaries;
 	getBoundaries(boundaries);
 
-	// std::cout << "remove_planes in" << std::endl;
 	// Cloud containing the points without the planes.
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
 
 	// -1 -> part of a plane, 0 -> not part of an object, 1 -> part of an object.
 	std::vector<char> mask = std::vector<char>(cloud->points.size(), 0);
 
-	// std::cout << "pepe1" << endl;
 	assert(coefficients.size() == boundaries.size());
 	for(int i = 0; i < coefficients.size(); i++) {
 
@@ -125,12 +166,9 @@ void MultiplePlaneSegmentation::segment(const pcl::PointCloud<pcl::PointXYZRGBA>
 			// If the x value of the pointcloud or it is marked as a point in a plane it is not needed to
 			// make further calculations, we don't want this point.
 			if(isnan(cloud->points[j].x) or mask[j] == -1) continue;
-			// std::cout << "pepess1" << std::endl;
 
 			Eigen::Vector4f pt(cloud->points[j].x, cloud->points[j].y, cloud->points[j].z, 1);
-			// std::cout << "pepess2" << std::endl;
 			float distance = planeCoef.dot(pt);
-			// std::cout << "pepess3" << std::endl;
 			if (distance >= -0.02) {
 				if (isInlier(cloud, j , planeBoundary, planeCoef)) {
 					if (distance <= 0.02) {

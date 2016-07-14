@@ -5,23 +5,33 @@ using namespace std;
 // Cluster variables.
 const int MAX_CLUSTER_POINTS = 500000;
 
-long long getTime(){
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    long long mslong = (long long) tp.tv_sec * 1000L + tp.tv_usec / 1000;
-    return mslong;
-}
-
 /***********************
    Colour point cloud
 ***********************/
 
+/**
+ * @brief It colour a point.
+ * 
+ * @param point Point to colour.
+ * @param r Quantity of red [0-255].
+ * @param g Quantity of green [0-255].
+ * @param b Quantity of blue [0-255].
+ */
 void colourPoint(pcl::PointXYZRGBA &point, int r, int g, int b) {
 	point.r = r;
 	point.g = g;
 	point.b = b;
 }
 
+/**
+ * @brief It colours a point cloud with a given colour.
+ * 
+ * @param cloud Point cloud to colour.
+ * @param inliers Point of the point cloud that have to be coloured.
+ * @param r Quantity of red [0-255].
+ * @param g Quantity of green [0-255].
+ * @param b Quantity of blue [0-255].
+ */
 void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const boost::shared_ptr<std::vector<int> > &inliers, uint8_t r, uint8_t g, uint8_t b) {
 	for(uint i = 0; i < inliers->size(); i++) {
 		int p = (*inliers)[i];
@@ -29,6 +39,15 @@ void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const boos
 	}
 }
 
+/**
+ * @brief It colours a point cloud with a given colour.
+ * 
+ * @param cloud Point cloud to colour.
+ * @param inliers Point of the point cloud that have to be coloured.
+ * @param r Quantity of red [0-255].
+ * @param g Quantity of green [0-255].
+ * @param b Quantity of blue [0-255].
+ */
 void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std::vector<int> &inliers, uint8_t r, uint8_t g, uint8_t b) {
 	for(uint i = 0; i < inliers.size(); i++) {
 		int p = inliers[i];
@@ -36,6 +55,15 @@ void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std:
 	}
 }
 
+/**
+ * @brief It colours a point cloud with a given colour.
+ * 
+ * @param cloud Point cloud to colour.
+ * @param inliers Point of the point cloud that have to be coloured.
+ * @param r Quantity of red [0-255].
+ * @param g Quantity of green [0-255].
+ * @param b Quantity of blue [0-255].
+ */
 void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices &inliers, uint8_t r, uint8_t g, uint8_t b) {
 	for(uint i = 0; i < inliers.indices.size(); i++) {
 		int p = inliers.indices[i];
@@ -43,6 +71,12 @@ void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl:
 	}
 }
 
+/**
+ * @brief It colours the point cloud using different colours for the different clusters of points.
+ * 
+ * @param cloud Point cloud to colour.
+ * @param inliers Vector of points to colour, each cluster of points will be painted using a different colour.
+ */
 void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std::vector<pcl::PointIndices> &inliers) {
 	std::vector< std::vector<int> > colours;
 	computeColors(inliers.size(), colours);
@@ -51,7 +85,18 @@ void colourPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const std:
 	}
 }
 
-void colourLine(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, const pcl::ModelCoefficients &coef, double minDist, int r, int g, int b) {
+/**
+ * @brief It colours the points that are at a distance inferior to the maximum specified.
+ * 
+ * @param cloud Point cloud to colour.
+ * @param inputIndices Points that are candidates to be coloured.
+ * @param coef Coefficients of the line.
+ * @param maxDist Maximum distance for a point to be coloured.
+ * @param r Quantity of red [0-255].
+ * @param g Quantity of green [0-255].
+ * @param b Quantity of blue [0-255].
+ */
+void colourLine(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, const pcl::ModelCoefficients &coef, double maxDist, int r, int g, int b) {
 	for (int i = 0; i < inputIndices->indices.size(); i++) {
 		int pos = inputIndices->indices[i];
 		pcl::PointXYZRGBA p = cloud->points[pos];
@@ -61,7 +106,7 @@ void colourLine(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::Point
 		Eigen::Vector4f line_dir = Eigen::Vector4f(coef.values[3], coef.values[4], coef.values[5], 0);
 		double dist = pcl::sqrPointToLineDistance(pt, line_pt, line_dir);
 
-		if (dist <= minDist) {
+		if (dist <= maxDist) {
 			colourPoint(cloud->points[pos], r, g, b);
 		}
 	}
@@ -71,6 +116,14 @@ void colourLine(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::Point
     Point functions
 ***********************/
 
+/**
+ * @brief Create point with specific coordinates.
+ * 
+ * @param x Coordinate X.
+ * @param y Coordinate Y.
+ * @param z Coordinate Z.
+ * @return Point.
+ */
 pcl::PointXYZRGBA createXYZRGBA(double x, double y, double z) {
 	pcl::PointXYZRGBA p = pcl::PointXYZRGBA();
 	p.x = x;
@@ -80,7 +133,12 @@ pcl::PointXYZRGBA createXYZRGBA(double x, double y, double z) {
 }
 
 /**
- * Compute the area between two vectors (pq and pr).
+ * @brief It computes the area between two vectors (pq and pr).
+ * 
+ * @param p Initial point of the two vectors.
+ * @param q End point of the first vector.
+ * @param r End point of the second vector.
+ * @return Area.
  */
 double triangleArea(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
 	double pq[] = {q.x - p.x, q.y - p.y, q.z - p.z};
@@ -93,12 +151,13 @@ double triangleArea(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, cons
 }
 
 /**
- * Find the angle between two vectors build with 3 points (pq and pr), knowing that they are part of a plane.
- *
- * p: Initial point of the vectors.
- * q: End point of the first vector.
- * r: End point of the second vector.
- * n: Normal of the plane containing the two vectors.
+ * @brief Find the angle between two vectors build with 3 points (pq and pr) knowing that they are part of a plane.
+ * 
+ * @param p Initial point of the two vectors.
+ * @param q End point of the first vector.
+ * @param r End point of the second vector.
+ * @param n Normal of the plane where the vectors are embedded.
+ * @return Angle in degree between the two vectors.
  */
 double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r, const std::vector<float> &n) {
 	double x1,y1,z1,x2,y2,z2, xn, yn, zn;
@@ -122,6 +181,17 @@ double vectAngle3dEmbeddedPlane(const pcl::PointXYZRGBA &p, const pcl::PointXYZR
 	return angle*57.2957795;
 }
 
+/**
+ * @brief It returns the absolute angle between two vectors.
+ * 
+ * @param x1 Coordinate X of the first vector.
+ * @param y1 Coordinate Y of the first vector.
+ * @param z1 Coordinate Z of the first vector.
+ * @param x2 Coordinate X of the second vector.
+ * @param y2 Coordinate Y of the second vector.
+ * @param z2 Coordinate Z of the second vector.
+ * @return Absolute degree between them.
+ */
 float vectAngle3d(float x1, float y1, float z1, float x2, float y2, float z2) {
 	float dot = x1*x2 + y1*y2 + z1*z2;
 	float lenSq1 = x1*x1 + y1*y1 + z1*z1;
@@ -130,6 +200,14 @@ float vectAngle3d(float x1, float y1, float z1, float x2, float y2, float z2) {
 	return angle*57.2957795;
 }
 
+/**
+ * @brief It returns the absolute angle between thwo vectors.
+ * 
+ * @param p Initial point of the two vectors.
+ * @param q End point of the first vector.
+ * @param r End point of the second vector.
+ * @return Absolute degree between them.
+ */
 float vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const pcl::PointXYZRGBA &r) {
 	float x1,y1,z1,x2,y2,z2;
 
@@ -144,7 +222,14 @@ float vectAngle3d(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q, const 
 	return vectAngle3d(x1, y1, z1, x2, y2, z2);
 }
 
-
+/**
+ * @brief Squared distance between two points.
+ * 
+ * @param p First point
+ * @param q Second point
+ * 
+ * @return Squared distance.
+ */
 double distPoints(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q) {
 	double dx = p.x - q.x;
 	double dy = p.y - q.y;
@@ -155,6 +240,16 @@ double distPoints(const pcl::PointXYZRGBA &p, const pcl::PointXYZRGBA &q) {
 /*
  * It returns the orientation of the point pd, using as a reference the plane limited by pa, pb and pc.
  */
+
+ /**
+  * @brief 3D orientation test. It returns the position of a point in reference to a plane formed by three points.
+  * 
+  * @param pa First point of the plane.
+  * @param pb Second point of the plane
+  * @param pc Third point of the plane.
+  * @param pd Query point.
+  * @return Relative orientation. A 0 means the point lies on the plane, -1 and +1 that are at one side or another.
+  */
 int orient3d(const pcl::PointXYZRGBA &pa, const pcl::PointXYZRGBA &pb, const pcl::PointXYZRGBA &pc, const pcl::PointXYZRGBA &pd) {
 	double adx, bdx, cdx;
 	double ady, bdy, cdy;
@@ -179,6 +274,13 @@ int orient3d(const pcl::PointXYZRGBA &pa, const pcl::PointXYZRGBA &pb, const pcl
 	return 0;
 }
 
+/**
+ * @brief It corrects the normal of a plane, making that its direction is in the direction of the side of the plane that is seen.
+ * 
+ * @param origin Camera position.
+ * @param p A point of the plane.
+ * @param coef Normal of the plane.
+ */
 void correctNormal(const float origin[], const pcl::PointXYZRGBA &p, pcl::ModelCoefficients &coef) {
 	float originVect[] = {origin[0] - p.x, origin[1] - p.y, origin[2] - p.z};
 	float angle = vectAngle3d(originVect[0], originVect[1], originVect[2], coef.values[0], coef.values[1], coef.values[2]);
@@ -195,6 +297,13 @@ void correctNormal(const float origin[], const pcl::PointXYZRGBA &p, pcl::ModelC
     Polygon functions
 ***********************/
 
+/**
+ * @brief It computes the centroid of a polygon.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param polygon Indices of the polygon.
+ * @param center Center coordinates.
+ */
 void polygonCenter(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices &polygon, std::vector<double> &center) {
 	int ndim = 3;
 	center = std::vector<double>(ndim, 0.0);
@@ -210,6 +319,16 @@ void polygonCenter(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	}
 }
 
+/**
+ * @brief Given polygon describing the limits of a flat surface it returns if the point is inside its limits or not.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param point Index of the point to test.
+ * @param polygon Points describing the limits of the polygon.
+ * @param n Normal of the flat surface.
+ * 
+ * @return [description]
+ */
 bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int point, const std::vector<pcl::PointXYZRGBA> &polygon, const Eigen::Vector4f &n) {
 
 	pcl::PointXYZRGBA p = cloud->points[point];
@@ -238,6 +357,13 @@ bool isInlier(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, int poi
     return true;
 }
 
+/**
+ * @brief It orders angularly the vertices of a convex polygon.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param n Normal of the polygon
+ * @param polygon Points to sort.
+ */
 void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const std::vector<float> &n, pcl::PointIndices &polygon) {
 
 	int npoints = polygon.indices.size();
@@ -274,7 +400,8 @@ void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clou
 }
 
 /**
- *Algorithm inspired in https://bost.ocks.org/mike/simplify using lazy deletion in the queue to avoid
+ * @brief Algorithm to simplify a polygon.
+ * @details Algorithm inspired in https://bost.ocks.org/mike/simplify using lazy deletion in the queue to avoid
  *updating the priority queue key (that cannot be done using priority_queue nowadays). This can be done because when we update
  *a point for the removal of one of its neighbours, the angle will always decrease as a result of having a convex polygon. 
  *But we want to get first the biggest angles (the ones that are more similar to 180º), so when we get the top of the queue, 
@@ -284,6 +411,12 @@ void orderConvexPolygon(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &clou
  *
  *WARNING: this can be done because we know for sure that the angles will always decrease (for the convexity of the polygon), and
  *the maximum angle will be always smaller than 180º.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param polygon Polygon to simplify.
+ * @param n Normal of the polygon.
+ * @param maxPoints Points of the returned polygon.
+ * @param [out] simPolygon Simplified polygon.
  */
 typedef pair<double, int> pdi;
 void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &polygon, const std::vector<float> &n, int maxPoints, pcl::PointIndices &simPolygon) {
@@ -376,45 +509,13 @@ void polygonSimplification(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &c
   Point cloud functions
 ***********************/
 
-/* It does not work properly */
-void findLines(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, std::vector<pcl::ModelCoefficients> &coef) {
-	// Cloud containing the points without the planes.
-	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr remainingCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>(*cloud));
-	coef = std::vector<pcl::ModelCoefficients>(4);
-
-	// Create the segmentation object.
-	pcl::SACSegmentation<pcl::PointXYZRGBA> seg;
-
-	// Set segmentation parameters.
-	seg.setModelType(pcl::SACMODEL_LINE);
-	seg.setIndices(inputIndices);
-	seg.setOptimizeCoefficients(true);
-	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(5000);
-	seg.setDistanceThreshold(0.005);
-
-	// Create the filtering object.
-	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
-
-	// At each step, one line is removed from remainingCloud.
-	for(int i = 0; i < 4; i++){
-
-		pcl::PointIndices::Ptr inliers = pcl::PointIndices::Ptr(new pcl::PointIndices());
-
-		// Segment the largest planar component from the remaining cloud.
-		seg.setInputCloud(remainingCloud);
-		seg.segment(*inliers, coef[i]);
-
-		if (inliers->indices.size() == 0) break;
-
-		// Extract the plane inliers from the remainingCloud.
-		extract.setInputCloud(remainingCloud);
-		extract.setIndices(inliers);
-		extract.setNegative(true);
-		extract.filter(*remainingCloud);
-	}
-}
-
+/**
+ * @brief It computes the convex hull of a point cloud.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param inputIndices Points over which the convex hull is computed.
+ * @param [out] hullIndices Points that are part of the convex hull.
+ */
 void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, pcl::PointIndices &hullIndices) {
 	// Create a Concave Hull representation of the projected inliers
 	pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_hull(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -427,6 +528,19 @@ void findConvexHull(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, c
 	chull.getHullPointIndices(hullIndices); 
 }
 
+/**
+ * @brief It computes a region growing segmentation based on normals.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param indices Point for which the region growing must be computed.
+ * @param normals Normal of each point of the point cloud.
+ * @param tree Search tree that must be used.
+ * @param angleThresh Maximum angles accepted for a valid point.
+ * @param curvatureThresh Points with an angle bigger than that will start a new cluster.
+ * @param nNeigh Neighbours to consult.
+ * @param minClusSize Minimum size of a cluster.
+ * @param [out] clusters Returned segmentation.
+ */
 void regionGrowing(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::IndicesPtr &indices, const pcl::PointCloud<pcl::Normal>::Ptr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, int nNeigh, int minClusSize, std::vector<pcl::PointIndices> &clusters) {
 	pcl::RegionGrowing<pcl::PointXYZRGBA, pcl::Normal> reg;
 	reg.setSearchMethod(tree);
@@ -442,6 +556,14 @@ void regionGrowing(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	reg.extract (clusters);
 }
 
+/**
+ * @brief It computes an euclidean clustering.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param tolerance Points with a distance bigger than that will start a new cluster.
+ * @param minSize Minimum size of a cluster.
+ * @param [out] clusterIndices Returned segmentation. 
+ */
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
@@ -458,6 +580,15 @@ void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, float
 	ec.extract(clusterIndices);
 }
 
+/**
+ * @brief It computes an euclidean clustering.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param inputIndices Indices for which the clustering will be computed.
+ * @param tolerance Points with a distance bigger than that will start a new cluster.
+ * @param minSize Minimum size of a cluster.
+ * @param [out] clusterIndices Returned segmentation. 
+ */
 void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::PointIndices::ConstPtr &inputIndices, float tolerance, int minSize, std::vector<pcl::PointIndices> &clusterIndices) {
 	// Creating the KdTree object for the search method of the extraction
 	pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA>);
@@ -475,6 +606,13 @@ void clustering(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const
 	ec.extract(clusterIndices);
 }
 
+/**
+ * @brief Estimate the normal for each one of the points of the point cloud.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param [out] normals Computed normals. 
+ * @param thresh Radius used for the computation of a normal.
+ */
 void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh) {
 	pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne;
 	ne.setInputCloud(cloud);
@@ -490,6 +628,13 @@ void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &cloud, p
 	ne.compute(*normals);
 }
 
+/**
+ * @brief Estimate the normal for each one of the points of the point cloud.
+ * 
+ * @param cloud Point cloud in which the computations are done.
+ * @param [out] normals Computed normals. 
+ * @param thresh Radius used for the computation of a normal.
+ */
 void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::PointCloud<pcl::Normal>::Ptr &normals, double thresh) {
 	pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
 	ne.setInputCloud(cloud);
@@ -505,6 +650,13 @@ void estimateNormals(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, 
 	ne.compute(*normals);
 }
 
+/**
+ * @brief Extract indices from a point cloud keeping it organized.
+ * 
+ * @param input Input point cloud.
+ * @param inliers Points to extract.
+ * @param [out] New cloud with the selected points of the original one.	
+ */
 void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, const pcl::PointIndices::ConstPtr &inliers, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud) {
 	pcl::ExtractIndices<pcl::PointXYZRGBA> extract;
 	extract.setInputCloud(input);
@@ -514,7 +666,12 @@ void extractIndices(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &input, c
 	extract.filter(*cloud);
 }
 
-/* It returns the indices of cloud in a new pointcloud that is organized and the size of the object */
+/**
+ * @brief It reduces and organized point cloud height and width to the minimum window available based on the proportioned indices.
+ * 
+ * @param cloud Point cloud to update
+ * @param indices Indices of the point cloud. They are updated in the function to match the new point cloud
+ */
 void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointIndices &indices) {
 	pair<int,int> mi, ma;
 
@@ -556,6 +713,15 @@ void subPointCloud(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, pcl::PointInd
 	cloud->points.resize(newWidth*newHeight);
 }
 
+/**
+ * @brief It removes the points that the angle between its normal and the normal of a plane is bigger than a threshold.
+ * 
+ * @param cloud Input cloud
+ * @param input Used indices.
+ * @param planeCoefficients Reference plane.
+ * @param angleThresh Maximum angle.
+ * @param [out] output Valid indices after the filtering. 
+ */
 void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pcl::PointIndices::ConstPtr &input, const pcl::ModelCoefficients &planeCoefficients, float angleThresh, pcl::PointIndices::Ptr & output) {
 	output = pcl::PointIndices::Ptr(new pcl::PointIndices());
 	output->indices.resize(input->indices.size());
@@ -567,13 +733,18 @@ void filterByNormal(const pcl::PointCloud<pcl::Normal>::ConstPtr cloud, const pc
 		pcl::Normal n2 = cloud->points[i];
 
 		float angle = vectAngle3d(n1[0], n1[1], n1[2], n2.normal_x, n2.normal_y, n2.normal_z);
-		//std::cout << angle << " " << endl;
 		if(angleThresh >= angle or 180.0 - angle <= angleThresh) output->indices[nr_p++] = i;
 	}
 
 	output->indices.resize(nr_p);
 }
 
+/**
+ * @brief It removes the nans of a point cloud.
+ * 
+ * @param cloud Point cloud to update.
+ * @param input Valid indices.
+ */
 void removeNans(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud,  pcl::PointIndices::Ptr &input) {
 	std::vector<int> aux(input->indices);
 
@@ -588,6 +759,14 @@ void removeNans(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr cloud,  pcl::
     Plane functions
 ***********************/
 
+/**
+ * @brief Find the points that are inliers to plane with a defined maximum distance.
+ * 
+ * @param cloud Input point cloud
+ * @param modelCoef Plane coefficients.
+ * @param threshold Maximum distance to consider a point inlier. In meters.
+ * @param [out] inliers Points inliers to the plane.
+ */
 void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const pcl::ModelCoefficients &modelCoef, float threshold, pcl::IndicesPtr &inliers) {
 
 	Eigen::Vector4f coef = Eigen::Vector4f(modelCoef.values.data());
@@ -597,7 +776,6 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 	inliers->resize(totalPoints);
 	// Iterate through the 3d points and calculate the distances from them to the plane
 
-	//#pragma omp parallel for firstprivate(threshold, coef) shared(cloud, inliers, nr_p) num_threads(3)
 	for(size_t i = 0; i < totalPoints; i++) {
 
 		if (isnan(cloud->points[i].x)) continue;
@@ -611,16 +789,20 @@ void findPlaneInliers(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud,
 		float distance = fabsf(coef.dot(pt));
 		if(distance < threshold) {
 			// Returns the indices of the points whose distances are smaller than the threshold
-			//#pragma omp critical
-			//{
-				(*inliers)[nr_p] = i;
-				nr_p++;
-			//}
+			(*inliers)[nr_p] = i;
+			nr_p++;
 		}
 	}
 	inliers->resize(nr_p);
 }
 
+/**
+ * @brief Project points to a plane
+ * 
+ * @param cloud Input point cloud
+ * @param modelCoef Plane coefficients.
+ * @param projCloud Projected cloud.
+ */
 void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, pcl::ModelCoefficients::ConstPtr modelCoef, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &projCloud) {
 
 	projCloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -636,6 +818,15 @@ void projectToPlane(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, p
        Descriptors
 ***********************/
 
+/**
+ * @brief Compute the VFH descriptor for a set of indices of a point cloud.
+ * 
+ * @param object Input cloud.
+ * @param normals Normals of the point cloud.
+ * @param indices Valid indices.
+ * @param tree Used serach tree.
+ * @param descriptor Obtained descriptor.
+ */
 void vfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::PointIndices::Ptr &indices, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptor) {
 	pcl::VFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> vfh;
 	vfh.setInputCloud(object);
@@ -651,49 +842,4 @@ void vfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::
 	vfh.setNormalizeDistance(true);
  
 	vfh.compute(*descriptor);
-}
-
-void ourcvfh(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGB>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
-	// OUR-CVFH estimation object.
-	pcl::OURCVFHEstimation<pcl::PointXYZRGB, pcl::Normal, pcl::VFHSignature308> ourcvfh;
-	ourcvfh.setInputCloud(object);
-	ourcvfh.setInputNormals(normals);
-	ourcvfh.setSearchMethod(tree);
-	ourcvfh.setEPSAngleThreshold(angleThresh); // 5 degrees.
-	ourcvfh.setCurvatureThreshold(curvatureThresh);
-	ourcvfh.setNormalizeBins(scaleInvariant);
-	ourcvfh.setAxisRatio(1);
-	ourcvfh.compute(*descriptors);
-}
-
-void cvfh(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, const pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr &tree, double angleThresh, double curvatureThresh, bool scaleInvariant, pcl::PointCloud<pcl::VFHSignature308>::Ptr &descriptors) {
-	// CVFH estimation object.
-	pcl::CVFHEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::VFHSignature308> cvfh;
-	cvfh.setInputCloud(object);
-	cvfh.setInputNormals(normals);
-	cvfh.setSearchMethod(tree);
-	// Set the maximum allowable deviation of the normals,
-	// for the region segmentation step.
-	cvfh.setEPSAngleThreshold(angleThresh); // 5 degrees.
-	// Set the curvature threshold (maximum disparity between curvatures),
-	// for the region segmentation step.
-	cvfh.setCurvatureThreshold(curvatureThresh);
-	// Set to true to normalize the bins of the resulting histogram,
-	// using the total number of points. Note: enabling it will make CVFH
-	// invariant to scale just like VFH, but the authors encourage the opposite.
-	cvfh.setNormalizeBins(scaleInvariant);
- 
-	cvfh.compute(*descriptors);
-}
-
-void shot352(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &object, const pcl::PointCloud<pcl::Normal>::ConstPtr &normals, float radius, pcl::PointCloud<pcl::SHOT352>::Ptr &descriptors) {
-	// SHOT estimation object.
-	pcl::SHOTEstimation<pcl::PointXYZRGBA, pcl::Normal, pcl::SHOT352> shot;
-	shot.setInputCloud(object);
-	shot.setInputNormals(normals);
-	// The radius that defines which of the keypoint's neighbors are described.
-	// If too large, there may be clutter, and if too small, not enough points may be found.
-	shot.setRadiusSearch(radius);
- 
-	shot.compute(*descriptors);
 }
