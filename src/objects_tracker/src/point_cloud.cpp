@@ -21,6 +21,8 @@ using namespace cv_bridge;
 using namespace sensor_msgs;
 using namespace message_filters;
 
+/*! \file */
+
 typedef sync_policies::ApproximateTime<Image, Image, CameraInfo> MySyncPolicy;
 
 bool newFrame = false;
@@ -30,6 +32,12 @@ cv::Mat lookupX, lookupY;
 
 pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud;
 
+/**
+ * @brief It reads and stores the camera information.
+ * 
+ * @param cameraInfo Received camera information.
+ * @param [out] cameraMatrix Place to store the information. 
+ */
 void readCameraInfo(const sensor_msgs::CameraInfo::ConstPtr cameraInfo, cv::Mat &cameraMatrix)
 {
   double *itC = cameraMatrix.ptr<double>(0, 0);
@@ -39,6 +47,13 @@ void readCameraInfo(const sensor_msgs::CameraInfo::ConstPtr cameraInfo, cv::Mat 
   }
 }
 
+/**
+ * @brief It receives a synchronized colour and depth image and the camera info, and stores the point cloud. 
+ * 
+ * @param color Color image.
+ * @param depth Depth image.
+ * @param info Camera information.
+ */
 void callback(const sensor_msgs::ImageConstPtr& color, const sensor_msgs::ImageConstPtr& depth, const sensor_msgs::CameraInfoConstPtr& info) {
   colorFrame = cv_bridge::toCvCopy(color, "bgr8")->image;
   depthFrame = cv_bridge::toCvCopy(depth, "16UC1")->image;
@@ -47,6 +62,15 @@ void callback(const sensor_msgs::ImageConstPtr& color, const sensor_msgs::ImageC
   newFrame = true;
 }
 
+/**
+ * @brief It creates a lookup to speed-up the point cloud generation.
+ * 
+ * @param width Width of the image.
+ * @param height Height of the image.
+ * @param cameraMatrix Camera matrix.
+ * @param [out] lookupX X coordinates lookup.
+ * @param [out] lookupY Y coordinates lookup.
+ */
 void createLookup(size_t width, size_t height, cv::Mat &cameraMatrix, cv::Mat &lookupX, cv::Mat &lookupY)
 {
   const float fx = 1.0f / cameraMatrix.at<double>(0, 0);
@@ -70,6 +94,15 @@ void createLookup(size_t width, size_t height, cv::Mat &cameraMatrix, cv::Mat &l
   }
 }
 
+/**
+ * @brief It creates a point cloud from a depth and a colour image.
+ * 
+ * @param depth Depth image.
+ * @param color Colour image.
+ * @param [out] cloud Obtained point cloud.
+ * @param lookupX X lookup.
+ * @param lookupY Y lookup.
+ */
 void createCloud(const cv::Mat &depth, const cv::Mat &color, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud, const cv::Mat &lookupX, const cv::Mat &lookupY)
 {
   const float badPoint = std::numeric_limits<float>::quiet_NaN();
@@ -104,11 +137,28 @@ void createCloud(const cv::Mat &depth, const cv::Mat &color, pcl::PointCloud<pcl
   }
 }
 
+/**
+ * @brief It returns a ROS message containing a point cloud.
+ * 
+ * @param cloud Input cloud.
+ * @param [out] cloud_msg Point cloud message.
+ */
 inline void getPointCloudMsg(const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr &cloud,  sensor_msgs::PointCloud2 &cloud_msg) {
   pcl::toROSMsg(*cloud, cloud_msg);
   cloud_msg.header = pcl_conversions::fromPCL((*cloud).header);
 }
 
+/**
+ * @brief Node in charge of creating a point cloud from a colour and a depth image.
+ * @details It reads the colour and depth images from the "/<cam>/<quality>/image_color_rect" and 
+ * "/<cam>/<quality>/image_depth_rect" respectively, where <cam> and <quality> are node parameters. It also
+ * needs the camera information obtained from the topic "/<cam>/<quality>+/camera_info". The Point cloud is
+ * published to the topic "/<cam>/<quality>/PointCloud".
+ * 
+ * @param cam Camera identifier.
+ * @param quality Image quality.
+ * @param link Frame reference.
+ */
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "capture_image");
@@ -136,8 +186,8 @@ int main(int argc, char **argv)
   message_filters::Subscriber<Image> depth_sub(nh, cam_depth, 1);
   message_filters::Subscriber<CameraInfo> info_sub(nh, cam_info, 1);
 
-  // Initialize camera 1 publishers.
-  ROS_INFO("\nCamera 1 PointCloud publisher: \n\t%s\n", cam_pointcloud.c_str());
+  // Initialize camera publishers.
+  ROS_INFO("\nCamera PointCloud publisher: \n\t%s\n", cam_pointcloud.c_str());
   ros::Publisher cam_pub = nh.advertise< pcl::PointCloud<pcl::PointXYZRGBA> > (cam_pointcloud, 1);
 
   // Set approximate policy and configure callback.
@@ -157,7 +207,7 @@ int main(int argc, char **argv)
 
       if(first) {
 
-        // Initialize cloud 1
+        // Initialize cloud
         cloud = pcl::PointCloud<pcl::PointXYZRGBA>::Ptr(new pcl::PointCloud<pcl::PointXYZRGBA>());
         cloud->height = color.rows;
         cloud->width = color.cols;

@@ -1,5 +1,14 @@
 #include <objects_tracker/utilities/ros.hpp>
 
+/**
+ * @brief It returns a maker that can be visualized using rviz.
+ * 
+ * @param frame_id Frame of reference.
+ * @param id Identifier of the marker.
+ * @param type Type of marker.
+ * @param pos Position of the marker.
+ * @return Rviz marker.
+ */
 visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t type, double pos[], double scale[], double color[], double ori[], double points[][3]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
@@ -36,6 +45,16 @@ visualization_msgs::Marker buildMarker(std::string frame_id, int id, uint32_t ty
 	return marker;
 }
 
+/**
+ * @brief It builds a text marker.
+ *  
+ * @param frame_id Frame of reference.
+ * @param id Marker identifier.
+ * @param pos Position of the text.
+ * @param height Height of the text.
+ * @param text Text to show.
+ * @return Rviz text marker.
+ */
 visualization_msgs::Marker buildText(std::string frame_id, int id, double pos[], double height, std::string text) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
@@ -60,6 +79,16 @@ visualization_msgs::Marker buildText(std::string frame_id, int id, double pos[],
 	return marker;
 }
 
+/**
+ * @brief It build a line marker.
+ * 
+ * @param frame_id Frame of reference.
+ * @param id Marker identifier
+ * @param pos Vector containing the vertices positions.
+ * @param width Width of the line.
+ * @param color Color of the marker.
+ * @return Rviz line marker.
+ */
 visualization_msgs::Marker buildLineMarker(std::string frame_id, int id, std::vector< std::vector<double> > pos, double width, double color[]) {
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = frame_id;
@@ -90,6 +119,14 @@ visualization_msgs::Marker buildLineMarker(std::string frame_id, int id, std::ve
 	return marker;
 }
 
+/**
+ * @brief It returns a marker containing a set of line markers. Each line marker is painted of a different colour.
+ * 
+ * @param frame_id Reference frame.
+ * @param positions A matrix, each row contains the vertices of a line marker.
+ * @param width Line width.
+ * @param [out] markers The obtained marker. 
+ */
 void buildLineMarkers(std::string frame_id, std::vector< std::vector< std::vector<double> > > positions, double width, std::vector<visualization_msgs::Marker> &markers) {
 	markers = std::vector<visualization_msgs::Marker>();
 
@@ -103,6 +140,15 @@ void buildLineMarkers(std::string frame_id, std::vector< std::vector< std::vecto
 	}
 }
 
+/**
+ * @brief Compute a set of markers of the same type.
+ * 
+ * @param frame_id Reference frame.
+ * @param type Type of the marker.
+ * @param positions Positions of each one of the markers.
+ * @param scale Markers scale.
+ * @param [out] markers A vector of obtained markers.
+ */
 void buildMarkers(std::string frame_id, uint32_t type, std::vector< std::vector< std::vector<double> > > positions, double scale[], std::vector<visualization_msgs::Marker> &markers) {
 	markers = std::vector<visualization_msgs::Marker>();
 

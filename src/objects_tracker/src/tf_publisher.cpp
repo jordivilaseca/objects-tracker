@@ -6,8 +6,15 @@
 
 using namespace std;
 
+/*! \file */
+
 YAML::Node config;
 
+/**
+ * @brief It publishes the poses periodically.
+ * 
+ * @param br Transform broadcaster to send the tfs.
+ */
 void publish_poses(const ros::TimerEvent&, tf::TransformBroadcaster &br) {
   for (auto itCam = config.begin(); itCam != config.end(); ++itCam) {
     YAML::Node cam = itCam->first;
@@ -23,6 +30,10 @@ void publish_poses(const ros::TimerEvent&, tf::TransformBroadcaster &br) {
   }
 }
 
+/**
+ * @brief Node in charge of send periodically all the available relative poses between cameras. 
+ * @details It makes use of the information gathered using the 'tf_calibration' node and publishes it.
+ */
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "tf_publisher");

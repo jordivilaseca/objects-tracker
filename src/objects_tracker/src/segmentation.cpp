@@ -31,12 +31,22 @@ using namespace std;
 using namespace sensor_msgs;
 using namespace message_filters;
 
+/*! \file */
+
 boost::shared_ptr<ros::NodeHandle> nh;
 
 bool newCloud = false;
 boost::mutex m;
 pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud;
 
+/**
+ * @brief It translates a set of objects point cloud to a Objects class.
+ * 
+ * @param cloud Vector of objects point clouds.
+ * @param objectIndices Vector of indices of the objects.
+ * @param frame_id Reference frame.
+ * @param [out] obs Obtained Objects instance.
+ */
 void createObjects(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, const std::vector<pcl::PointIndices>& objectIndices, std::string frame_id, objects_tracker::Objects& obs) {
 
 	// Build ros message.
@@ -89,6 +99,13 @@ void createObjects(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &cloud, co
 	}
 }
 
+/**
+ * @brief It publishes the boundaries of the planes periodically.
+ * 
+ * @param s Segmenter instance already initiliazated.
+ * @param marPub Publisher.
+ * @param frame_id Reference frame.
+ */
 void publishBoundaries(const ros::TimerEvent&, const MultiplePlaneSegmentation &s, const ros::Publisher &marPub, const std::string &frame_id) {
 
 	if (marPub.getNumSubscribers() > 0) {
@@ -121,6 +138,11 @@ void publishBoundaries(const ros::TimerEvent&, const MultiplePlaneSegmentation &
 	}
 }
 
+/**
+ * @brief It copies a point cloud every time a new one arrives.
+ * 
+ * @param callbackCloud Point cloud.
+ */
 void cloudCallback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &callbackCloud) {
 	m.lock();
 	*cloud = *callbackCloud;
@@ -129,6 +151,20 @@ void cloudCallback(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr &callbackC
 	newCloud = true;
 }
 
+/**
+ * @brief Node in charge of the segmentation of the scene.
+ * @details Is capable of finding different planes having a concrete orientation, defining their limits 
+ * and segmenting the scene. The objects points are defined as the ones that are above a plane, inside its limits
+ * and that is not part of any of the planes of the scene. The orientation used to find the planes is the same
+ * that is obtained after running the 'tf_calibration' node. The point cloud is obtained from the topic 
+ * "/<cam>/<quality>/PointCloud", the objects are published to "/<cam>/objects" and the planes markers to 
+ * "/<cam>/planes", with <cam> and <quality> as node parameters.
+ * 
+ * @param cam Camera identifier.
+ * @param quality Camera quality.
+ * @param link Reference frame.
+ * @param num_planes Number of planes used for the segmentation.
+ */
 int main(int argc, char **argv) {
 	ros::init(argc, argv, "segmentation");
 	nh.reset(new ros::NodeHandle());

@@ -1,6 +1,5 @@
 #include <ros/ros.h>
 #include <ros/package.h>
-#include "yaml-cpp/yaml.h"
 
 #include <pcl/point_cloud.h>
 #include <pcl_ros/point_cloud.h>
@@ -14,8 +13,15 @@
 
 using namespace std;
 
-YAML::Node config;
+/*! \file */
 
+/**
+ * @brief It recognises and publishes the information of different objects.
+ * 
+ * @param obs Message containing different objects point cloud.
+ * @param r The recogniser previously trained.
+ * @param pub Publisher to send the extracted information.
+ */
 void make_recognition(const objects_tracker::Objects::ConstPtr &obs, const Recogniser &r, const ros::Publisher &pub) {
   if (pub.getNumSubscribers() > 0) {
     long long init = getTime();
@@ -38,6 +44,16 @@ void make_recognition(const objects_tracker::Objects::ConstPtr &obs, const Recog
   }
 }
 
+/**
+ * @brief Node in charge of making the recognition of the objects.
+ * 
+ * It reads the recogniser previously trained using the 'training' node and starts recognising the objects published
+ * on the /<cam>/objects, where <cam> is the cam identifier passed as parameter and publishes the results in the
+ * topic /<cam>/namedObjects. The only thing that this node does is to complement the input message adding the 
+ * identifier of the object.
+ * 
+ * @param cam cam identifier.
+ */
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "objects_recognition");

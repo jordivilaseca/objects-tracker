@@ -7,6 +7,8 @@
 
 using namespace std;
 
+/*! \file */
+
 struct tf {
   float x;
   float y;
@@ -23,6 +25,11 @@ tf t;
 int iter = 0;
 int total_iter = 25;
 
+/**
+ * @brief It receives a pose callback and acumulates the values to a global variable.
+ * 
+ * @param msg Pose callback.
+ */
 void pose_callback(const ar_track_alvar_msgs::AlvarMarkers::ConstPtr& msg)
 {
   if (msg->markers.size() > 1) {
@@ -41,6 +48,16 @@ void pose_callback(const ar_track_alvar_msgs::AlvarMarkers::ConstPtr& msg)
   }
 }
 
+/**
+ * @brief Node in charge of finding the relative position of different cameras in order to could work with more
+ * than one without changing the reference frame.
+ * @details It gets the poses using the ar_track_alvar ROS package and the use of a tag. It computes the average 
+ * pose of different reads and stores the result in a yaml file to use it afterwards. To obtain correct results
+ * the calibrations of the different cameras must be done using an static position of the tag.
+ * 
+ * @param cam Camera identifier.
+ * @param quality Camera quality.
+ */
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "tf_calibration");

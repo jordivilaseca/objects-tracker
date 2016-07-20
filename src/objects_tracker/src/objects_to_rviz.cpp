@@ -1,6 +1,5 @@
 #include <ros/ros.h>
 #include <ros/package.h>
-#include "yaml-cpp/yaml.h"
 
 #include <pcl/point_cloud.h>
 #include <pcl_ros/point_cloud.h>
@@ -15,8 +14,19 @@
 
 using namespace std;
 
-YAML::Node config;
+/*! \file */
 
+/**
+ * @brief It receives an Objects class object and translates the data to rviz compatible structures.
+ * 
+ * In order to do this, it joins all the point clouds to a point cloud containing all the objects, the bounding
+ * boxes are traduced to primitives and the names of the objects are translated to rviz compatible text.
+ * 
+ * @param obs Set of objects.
+ * @param frame_id Reference frame.
+ * @param pub_bb Bounding box publisher.
+ * @param pub_pc Point cloud publisher.
+ */
 void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id, ros::Publisher &pub_bb, ros::Publisher &pub_pc) {
   if (pub_bb.getNumSubscribers() > 0) {
 
@@ -59,6 +69,20 @@ void publish(const objects_tracker::Objects::ConstPtr &obs, std::string frame_id
   }
 }
 
+/**
+ * @brief Node in charge of translating objects to rviz compatible data.
+ * @details It gets the data available in the topics "/<cam>/objects" and "/<cam>/namedObjects" with <cam> as
+ * the cam identifier passed as parameter, joins the point clouds of separated objects to an only one, the bounding
+ * boxes to primitives and the objects identifiers (if they exist) to rviz text. Then it publishes the point cloud
+ * to the topics "/<cam>/objects/boundingbox" and "/<cam>/namedObjects/boundingbox" for the text and bounding boxes, 
+ * and "/<cam>/objects/pointcloud" and "/<cam>/namedObjects/pointcloud" for the objects point clouds. The node
+ * only translates and sends the data when at least another node is subscribed to the output topic.
+ * 
+ * @param cam Camera identifier.
+ * @param link Reference frame.
+ * 
+ * @return [description]
+ */
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "objects_to_rviz");
